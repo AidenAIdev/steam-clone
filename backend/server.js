@@ -5,6 +5,9 @@ import cors from 'cors';
 // Import auth routes
 import { authRoutes } from './src/features/auth/index.js';
 
+// Import developer auth routes (Steamworks)
+import { developerAuthRoutes } from './src/features/developer-auth/index.js';
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -12,8 +15,11 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Auth routes
+// Auth routes (usuarios normales)
 app.use('/api/auth', authRoutes);
+
+// Developer auth routes (Steamworks - desarrolladores)
+app.use('/api/desarrolladores/auth', developerAuthRoutes);
 
 // Datos de ejemplo
 const games = [

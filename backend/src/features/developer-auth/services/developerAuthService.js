@@ -227,9 +227,9 @@ export const developerAuthService = {
     // 4. Registrar evento de registro exitoso (RNF-008)
     await auditService.registrarRegistro(
       userId,
-      emailSanitizado,
       requestMetadata.ip_address,
-      requestMetadata.user_agent
+      requestMetadata.user_agent,
+      { email: emailSanitizado }
     );
 
     // Descifrar datos bancarios antes de retornar (para consistencia)

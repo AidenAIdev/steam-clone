@@ -192,7 +192,7 @@ export const developerAuthService = {
     // 3. Configurar MFA automáticamente (RNF-001)
     try {
       // Habilitar MFA para el usuario
-      const { data: mfaData, error: mfaError } = await supabaseAdmin.auth.admin.updateUserById(
+      const { error: mfaError } = await supabaseAdmin.auth.admin.updateUserById(
         userId,
         { app_metadata: { mfa_enabled: true } }
       );

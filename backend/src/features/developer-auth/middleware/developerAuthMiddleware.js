@@ -6,7 +6,7 @@
 
 import supabase, { supabaseAdmin } from '../../../shared/config/supabase.js';
 import { sessionService } from '../../../shared/services/sessionService.js';
-import { auditService } from '../../../shared/services/auditService.js';
+import { auditService, ACCIONES_AUDITORIA, RESULTADOS } from '../../../shared/services/auditService.js';
 
 /**
  * Middleware: Requiere autenticación de desarrollador
@@ -43,10 +43,10 @@ export const requireDesarrollador = async (req, res, next) => {
       // Registrar acceso con sesión inválida
       await auditService.registrarAccesoNoAutorizado(
         user.id,
-        user.email,
-        'Sesión inválida o expirada en BD',
+        `desarrollador:${user.email}`,
         req.ip || req.connection.remoteAddress,
-        req.get('user-agent')
+        req.get('user-agent'),
+        'Sesión inválida o expirada en BD'
       );
 
       return res.status(401).json({
@@ -67,10 +67,10 @@ export const requireDesarrollador = async (req, res, next) => {
       // Registrar intento de acceso no autorizado
       await auditService.registrarAccesoNoAutorizado(
         user.id,
-        user.email,
-        'No es un desarrollador registrado o cuenta inactiva',
+        `desarrollador:${user.email}`,
         req.ip || req.connection.remoteAddress,
-        req.get('user-agent')
+        req.get('user-agent'),
+        'No es un desarrollador registrado o cuenta inactiva'
       );
 
       return res.status(403).json({
@@ -97,12 +97,6 @@ export const requireDesarrollador = async (req, res, next) => {
  * Middleware: Requiere rol de desarrollador admin
  * Para operaciones especiales que requieren permisos elevados
  */
-export const requireDesarrolladorAdmin = async (req, res, next) => {
-  try {
-    // Primero verificar que sea desarrollador
-    await new Promise((resolve, reject) => {
-      requireDesarrollador(req, res, (err) => {
-        if (err) reject(err);
 export const requireDesarrolladorAdmin = (req, res, next) => {
   // Primero verificar que sea desarrollador
   requireDesarrollador(req, res, (err) => {
@@ -162,15 +156,17 @@ export const requireMfaVerificado = async (req, res, next) => {
 
       if (!sesion || !sesion.mfa_verificado) {
         // Registrar intento de acceso sin MFA verificado
-        await auditService.registrarEvento(
-          req.user.id,
-          'ACCESO_SIN_MFA',
-          'FALLO',
-          'Operación de alto riesgo requiere MFA verificado',
-          { operacion: req.path },
-          req.ip || req.connection.remoteAddress,
-          req.get('user-agent')
-        );
+        await auditService.registrarEvento({
+          desarrolladorId: req.user.id,
+          accion: ACCIONES_AUDITORIA.MFA_FALLIDO,
+          resultado: RESULTADOS.FALLIDO,
+          detalles: { 
+            razon: 'Operación de alto riesgo requiere MFA verificado',
+            operacion: req.path 
+          },
+          ipAddress: req.ip || req.connection.remoteAddress,
+          userAgent: req.get('user-agent')
+        });
 
         return res.status(403).json({
           success: false,

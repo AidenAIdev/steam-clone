@@ -106,7 +106,8 @@ export const developerAuthService = {
     const datosBancariosCifrados = encryptBankData({
       cuenta_bancaria: numero_cuenta,
       titular_banco: titular_cuenta,
-      nombre_banco: banco
+      nombre_banco: banco,
+      nif_cif: nif_cif // Cifrar NIF/CIF (dato fiscal sensible)
     });
 
     // 1. Crear usuario en Supabase Auth
@@ -161,7 +162,7 @@ export const developerAuthService = {
         banco: datosBancariosCifrados.nombre_banco,
         numero_cuenta: datosBancariosCifrados.cuenta_bancaria, // Cifrado
         titular_cuenta: datosBancariosCifrados.titular_banco,
-        nif_cif: sanitizeString(nif_cif || ''),
+        nif_cif: datosBancariosCifrados.nif_cif, // Cifrado
         razon_social: sanitizeString(razon_social || ''),
         rol: 'desarrollador',
         acepto_terminos: true,
@@ -232,13 +233,19 @@ export const developerAuthService = {
     );
 
     // Descifrar datos bancarios antes de retornar (para consistencia)
+    const datosDescifrados = decryptBankData({
+      cuenta_bancaria: desarrollador.numero_cuenta,
+      titular_banco: desarrollador.titular_cuenta,
+      nombre_banco: desarrollador.banco,
+      nif_cif: desarrollador.nif_cif
+    });
+
     const desarrolladorConDatosDescifrados = {
       ...desarrollador,
-      ...decryptBankData({
-        cuenta_bancaria: desarrollador.numero_cuenta,
-        titular_banco: desarrollador.titular_cuenta,
-        nombre_banco: desarrollador.banco
-      })
+      numero_cuenta: datosDescifrados.cuenta_bancaria,
+      titular_cuenta: datosDescifrados.titular_banco,
+      banco: datosDescifrados.nombre_banco,
+      nif_cif: datosDescifrados.nif_cif
     };
 
     return {
@@ -338,10 +345,26 @@ export const developerAuthService = {
       requestMetadata.user_agent
     );
 
+    // 6. Descifrar datos bancarios antes de retornar
+    const datosDescifrados = decryptBankData({
+      cuenta_bancaria: desarrollador.numero_cuenta,
+      titular_banco: desarrollador.titular_cuenta,
+      nombre_banco: desarrollador.banco,
+      nif_cif: desarrollador.nif_cif
+    });
+
+    const desarrolladorConDatosDescifrados = {
+      ...desarrollador,
+      numero_cuenta: datosDescifrados.cuenta_bancaria,
+      titular_cuenta: datosDescifrados.titular_banco,
+      banco: datosDescifrados.nombre_banco,
+      nif_cif: datosDescifrados.nif_cif
+    };
+
     return {
       user: authData.user,
       session: authData.session,
-      desarrollador,
+      desarrollador: desarrolladorConDatosDescifrados,
       mfaRequired: desarrollador.mfa_habilitado && !authData.session.mfa_verified
     };
   },
@@ -396,9 +419,25 @@ export const developerAuthService = {
       throw new Error('Desarrollador no encontrado');
     }
 
+    // Descifrar datos bancarios
+    const datosDescifrados = decryptBankData({
+      cuenta_bancaria: desarrollador.numero_cuenta,
+      titular_banco: desarrollador.titular_cuenta,
+      nombre_banco: desarrollador.banco,
+      nif_cif: desarrollador.nif_cif
+    });
+
+    const desarrolladorConDatosDescifrados = {
+      ...desarrollador,
+      numero_cuenta: datosDescifrados.cuenta_bancaria,
+      titular_cuenta: datosDescifrados.titular_banco,
+      banco: datosDescifrados.nombre_banco,
+      nif_cif: datosDescifrados.nif_cif
+    };
+
     return {
       user,
-      desarrollador
+      desarrollador: desarrolladorConDatosDescifrados
     };
   },
 

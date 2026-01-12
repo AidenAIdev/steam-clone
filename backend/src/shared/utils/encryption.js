@@ -61,7 +61,8 @@ export function encryptBankData(bankData) {
   return {
     cuenta_bancaria: bankData.cuenta_bancaria ? encrypt(bankData.cuenta_bancaria) : null,
     titular_banco: bankData.titular_banco || null, // No cifrar nombre (no es ultra-sensible)
-    nombre_banco: bankData.nombre_banco || null
+    nombre_banco: bankData.nombre_banco || null,
+    nif_cif: bankData.nif_cif ? encrypt(bankData.nif_cif) : null // Cifrar NIF/CIF (dato fiscal sensible)
   };
 }
 
@@ -76,7 +77,8 @@ export function decryptBankData(encryptedBankData) {
   return {
     cuenta_bancaria: encryptedBankData.cuenta_bancaria ? decrypt(encryptedBankData.cuenta_bancaria) : null,
     titular_banco: encryptedBankData.titular_banco || null,
-    nombre_banco: encryptedBankData.nombre_banco || null
+    nombre_banco: encryptedBankData.nombre_banco || null,
+    nif_cif: encryptedBankData.nif_cif ? decrypt(encryptedBankData.nif_cif) : null // Descifrar NIF/CIF
   };
 }
 

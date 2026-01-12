@@ -24,7 +24,7 @@ const IV_LENGTH = 16; // Para AES, el IV es de 16 bytes
 /**
  * Cifra datos sensibles usando AES-256
  * @param {string} data - Datos a cifrar
- * @returns {string} - Datos cifrados en base64 con IV
+ * @returns {string} - Datos cifrados (IV:ciphertext en formato hexadecimal)
  */
 export function encrypt(data) {
   if (!data) return null;
@@ -47,7 +47,7 @@ export function encrypt(data) {
 
 /**
  * Descifra datos cifrados
- * @param {string} encryptedData - Datos cifrados con IV
+ * @param {string} encryptedData - Datos cifrados (IV:ciphertext)
  * @returns {string} - Datos descifrados
  */
 export function decrypt(encryptedData) {
@@ -57,7 +57,7 @@ export function decrypt(encryptedData) {
     // Separar IV y datos cifrados
     const parts = encryptedData.split(':');
     if (parts.length !== 2) {
-      throw new Error('Formato de datos cifrados inválido');
+      throw new Error('Invalid encrypted data format');
     }
     
     const iv = Buffer.from(parts[0], 'hex');

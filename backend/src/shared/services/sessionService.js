@@ -10,7 +10,7 @@
  */
 
 import { supabaseAdmin } from '../config/supabase.js';
-import CryptoJS from 'crypto-js';
+import crypto from 'crypto';
 
 /**
  * Duración de sesiones
@@ -238,7 +238,7 @@ export const sessionService = {
    * @returns {string} - Hash del token
    */
   hashToken(token) {
-    return CryptoJS.SHA256(token).toString();
+    return crypto.createHash('sha256').update(token).digest('hex');
   },
 
   /**

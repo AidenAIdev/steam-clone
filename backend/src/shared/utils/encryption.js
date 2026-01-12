@@ -11,22 +11,34 @@
  * para datos bancarios ultra-sensibles.
  */
 
-import CryptoJS from 'crypto-js';
+import crypto from 'crypto';
 
 // Clave de cifrado - DEBE estar en variable de entorno en producción
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'steamworks_encryption_key_change_in_production_2026_ultra_secret';
 
+// Derivar una clave de 256 bits usando SHA-256
+const KEY = crypto.createHash('sha256').update(ENCRYPTION_KEY).digest();
+const ALGORITHM = 'aes-256-cbc';
+const IV_LENGTH = 16; // Para AES, el IV es de 16 bytes
+
 /**
  * Cifra datos sensibles usando AES-256
  * @param {string} data - Datos a cifrar
- * @returns {string} - Datos cifrados en base64
+ * @returns {string} - Datos cifrados en base64 con IV
  */
 export function encrypt(data) {
   if (!data) return null;
   
   try {
-    const encrypted = CryptoJS.AES.encrypt(data, ENCRYPTION_KEY);
-    return encrypted.toString();
+    // Generar un IV aleatorio para cada cifrado
+    const iv = crypto.randomBytes(IV_LENGTH);
+    const cipher = crypto.createCipheriv(ALGORITHM, KEY, iv);
+    
+    let encrypted = cipher.update(data, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    
+    // Combinar IV y datos cifrados (IV:encrypted)
+    return iv.toString('hex') + ':' + encrypted;
   } catch (error) {
     console.error('Error al cifrar datos:', error);
     throw new Error('Error al cifrar datos sensibles');
@@ -35,15 +47,28 @@ export function encrypt(data) {
 
 /**
  * Descifra datos cifrados
- * @param {string} encryptedData - Datos cifrados
+ * @param {string} encryptedData - Datos cifrados con IV
  * @returns {string} - Datos descifrados
  */
 export function decrypt(encryptedData) {
   if (!encryptedData) return null;
   
   try {
-    const decrypted = CryptoJS.AES.decrypt(encryptedData, ENCRYPTION_KEY);
-    return decrypted.toString(CryptoJS.enc.Utf8);
+    // Separar IV y datos cifrados
+    const parts = encryptedData.split(':');
+    if (parts.length !== 2) {
+      throw new Error('Formato de datos cifrados inválido');
+    }
+    
+    const iv = Buffer.from(parts[0], 'hex');
+    const encrypted = parts[1];
+    
+    const decipher = crypto.createDecipheriv(ALGORITHM, KEY, iv);
+    
+    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    
+    return decrypted;
   } catch (error) {
     console.error('Error al descifrar datos:', error);
     throw new Error('Error al descifrar datos sensibles');
@@ -91,7 +116,7 @@ export function decryptBankData(encryptedBankData) {
 export function hashSHA256(data) {
   if (!data) return null;
   
-  return CryptoJS.SHA256(data).toString();
+  return crypto.createHash('sha256').update(data).digest('hex');
 }
 
 /**

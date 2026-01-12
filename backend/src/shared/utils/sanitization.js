@@ -32,7 +32,12 @@ export function sanitizeEmail(email) {
 
 /**
  * Lista de campos que NO deben ser sanitizados
- * Incluye contraseñas, tokens y datos cifrados/sensibles
+ * Incluye contraseñas, tokens y datos sensibles que serán cifrados
+ * 
+ * IMPORTANTE: La sanitización puede alterar valores válidos en estos campos:
+ * - Contraseñas: pueden contener caracteres especiales válidos
+ * - Tokens: contienen datos codificados que no deben modificarse
+ * - Datos bancarios/fiscales: se cifran después, no deben alterarse antes
  */
 const FIELDS_TO_SKIP = [
   'password',
@@ -41,9 +46,9 @@ const FIELDS_TO_SKIP = [
   'accessToken',
   'refreshToken',
   'token',
-  'nif_cif',           // Dato fiscal cifrado
-  'numero_cuenta',     // Dato bancario cifrado
-  'cuenta_bancaria'    // Dato bancario cifrado
+  'nif_cif',           // Dato fiscal sensible (se cifra en el servicio)
+  'numero_cuenta',     // Dato bancario sensible (se cifra en el servicio)
+  'cuenta_bancaria'    // Dato bancario sensible (se cifra en el servicio)
 ];
 
 /**
@@ -66,6 +71,10 @@ export function sanitizeObject(obj, excludeFields = FIELDS_TO_SKIP) {
       const value = obj[key];
       
       // Si el campo está en la lista de exclusión, no sanitizar
+      // NOTA: Estos campos requieren preservar su valor exacto:
+      // - Passwords: cualquier cambio invalida la contraseña
+      // - Tokens: son datos codificados que no deben modificarse
+      // - Datos sensibles: se cifran en el servicio, mantienen integridad
       if (excludeFields.includes(key)) {
         sanitized[key] = value;
       } else if (typeof value === 'string') {

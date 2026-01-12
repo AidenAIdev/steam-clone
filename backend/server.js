@@ -8,12 +8,31 @@ import { authRoutes } from './src/features/auth/index.js';
 // Import developer auth routes (Steamworks)
 import { developerAuthRoutes } from './src/features/developer-auth/index.js';
 
+// Import security middleware (Grupo 2 - Seguridad)
+import { securityHeaders, additionalSecurityHeaders } from './src/shared/middleware/securityHeaders.js';
+import { apiLimiter } from './src/shared/middleware/rateLimiter.js';
+import { sanitizeBodyMiddleware } from './src/shared/utils/sanitization.js';
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
+// Security Middleware (DEBE IR PRIMERO)
+// RNF-002: HTTPS/TLS headers
+// Security Headers: HSTS, CSP, X-Frame-Options, etc.
+app.use(securityHeaders);
+app.use(additionalSecurityHeaders);
+
+// CORS
 app.use(cors());
+
+// Body parsing
 app.use(express.json());
+
+// Sanitización de inputs (C3: Prevención de inyecciones)
+app.use(sanitizeBodyMiddleware);
+
+// Rate limiting global (C7: RNF-007)
+app.use(apiLimiter);
 
 // Auth routes (usuarios normales)
 app.use('/api/auth', authRoutes);

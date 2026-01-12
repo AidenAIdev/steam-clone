@@ -2,9 +2,20 @@
  * Servicio de Autenticación para Desarrolladores (Steamworks)
  * Utiliza Supabase Auth con tabla extendida 'desarrolladores'
  * Cumple con: RF-001, RF-002, RNF-001, C14, C15, C18
+ * 
+ * Grupo 2 - Con seguridad mejorada:
+ * - C3: Sanitización de inputs
+ * - C2: Cifrado de datos bancarios
  */
 
 import supabase, { supabaseAdmin } from '../../../shared/config/supabase.js';
+import { 
+  sanitizeString, 
+  sanitizeEmail, 
+  isValidEmail,
+  containsSQLInjection 
+} from '../../../shared/utils/sanitization.js';
+import { encryptBankData, decryptBankData } from '../../../shared/utils/encryption.js';
 
 export const developerAuthService = {
   /**
@@ -31,19 +42,46 @@ export const developerAuthService = {
       acepto_terminos
     } = datosRegistro;
 
+    // === SANITIZACIÓN DE INPUTS (C3) ===
+    const emailSanitizado = sanitizeEmail(email);
+    const nombreLegalSanitizado = sanitizeString(nombre_legal);
+    const paisSanitizado = sanitizeString(pais);
+    
+    // Validar email
+    if (!isValidEmail(emailSanitizado)) {
+      throw new Error('Formato de email inválido');
+    }
+    
+    // Detectar SQL injection en inputs
+    if (containsSQLInjection(nombreLegalSanitizado) || 
+        containsSQLInjection(paisSanitizado) ||
+        containsSQLInjection(banco || '') ||
+        containsSQLInjection(titular_cuenta || '')) {
+      throw new Error('Entrada inválida detectada');
+    }
+
     // Validar aceptación de términos (RF-001)
     if (!acepto_terminos) {
       throw new Error('Debe aceptar los términos y condiciones para registrarse');
     }
 
+    // === CIFRADO DE DATOS BANCARIOS (C2, RNF-003) ===
+    // NOTA: Supabase ya proporciona cifrado en reposo (AES-256)
+    // Esto es una capa ADICIONAL de cifrado a nivel de aplicación
+    const datosBancariosCifrados = encryptBankData({
+      cuenta_bancaria: numero_cuenta,
+      titular_banco: titular_cuenta,
+      nombre_banco: banco
+    });
+
     // 1. Crear usuario en Supabase Auth
     const { data: authData, error: authError } = await supabase.auth.signUp({
-      email,
+      email: emailSanitizado,
       password,
       options: {
         data: {
           rol: 'desarrollador',
-          nombre_legal
+          nombre_legal: nombreLegalSanitizado
         }
       }
     });
@@ -60,15 +98,15 @@ export const developerAuthService = {
       .from('desarrolladores')
       .insert({
         id: userId,
-        nombre_legal,
-        pais,
-        telefono,
-        direccion,
-        banco,
-        numero_cuenta,
-        titular_cuenta,
-        nif_cif,
-        razon_social,
+        nombre_legal: nombreLegalSanitizado,
+        pais: paisSanitizado,
+        telefono: sanitizeString(telefono || ''),
+        direccion: sanitizeString(direccion || ''),
+        banco: datosBancariosCifrados.nombre_banco,
+        numero_cuenta: datosBancariosCifrados.cuenta_bancaria, // Cifrado
+        titular_cuenta: datosBancariosCifrados.titular_banco,
+        nif_cif: sanitizeString(nif_cif || ''),
+        razon_social: sanitizeString(razon_social || ''),
         rol: 'desarrollador',
         acepto_terminos: true,
         fecha_aceptacion_terminos: new Date().toISOString(),
@@ -84,10 +122,20 @@ export const developerAuthService = {
       throw new Error(`Error al crear perfil de desarrollador: ${devError.message}`);
     }
 
+    // Descifrar datos bancarios antes de retornar (para consistencia)
+    const desarrolladorConDatosDescifrados = {
+      ...desarrollador,
+      ...decryptBankData({
+        cuenta_bancaria: desarrollador.numero_cuenta,
+        titular_banco: desarrollador.titular_cuenta,
+        nombre_banco: desarrollador.banco
+      })
+    };
+
     return {
       user: authData.user,
       session: authData.session,
-      desarrollador
+      desarrollador: desarrolladorConDatosDescifrados
     };
   },
 

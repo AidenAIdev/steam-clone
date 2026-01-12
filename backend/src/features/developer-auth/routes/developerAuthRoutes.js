@@ -1,18 +1,21 @@
 /**
  * Rutas de Autenticación para Desarrolladores (Steamworks)
  * Prefijo: /api/desarrolladores/auth
+ * 
+ * Grupo 2 - Con seguridad mejorada
  */
 
 import express from 'express';
 import { developerAuthController } from '../controllers/developerAuthController.js';
+import { loginLimiter, registerLimiter, authLimiter } from '../../../shared/middleware/rateLimiter.js';
 
 const router = express.Router();
 
-// Registro de nuevo desarrollador (RF-001)
-router.post('/registro', developerAuthController.registro);
+// Registro de nuevo desarrollador (RF-001) con rate limiting
+router.post('/registro', registerLimiter, developerAuthController.registro);
 
-// Inicio de sesión (RF-002)
-router.post('/login', developerAuthController.login);
+// Inicio de sesión (RF-002) con rate limiting estricto
+router.post('/login', loginLimiter, developerAuthController.login);
 
 // Cierre de sesión
 router.post('/logout', developerAuthController.logout);
@@ -23,8 +26,8 @@ router.get('/perfil', developerAuthController.obtenerPerfil);
 // Verificar si es desarrollador válido
 router.get('/verificar', developerAuthController.verificarDesarrollador);
 
-// Recuperación de contraseña
-router.post('/forgot-password', developerAuthController.forgotPassword);
-router.post('/reset-password', developerAuthController.resetPassword);
+// Recuperación de contraseña con rate limiting
+router.post('/forgot-password', authLimiter, developerAuthController.forgotPassword);
+router.post('/reset-password', authLimiter, developerAuthController.resetPassword);
 
 export default router;

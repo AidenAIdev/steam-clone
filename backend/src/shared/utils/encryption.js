@@ -1,0 +1,119 @@
+/**
+ * Encryption Service - Cifrado a nivel de aplicación
+ * Grupo 2 - Seguridad Steamworks
+ * 
+ * Implementa:
+ * - RNF-003: Cifrado en reposo (capa adicional)
+ * - C2: Cifrado AES-256 para datos ultra-sensibles
+ * 
+ * NOTA: Supabase ya proporciona cifrado en reposo (AES-256) por defecto.
+ * Este servicio añade una capa ADICIONAL de cifrado a nivel de aplicación
+ * para datos bancarios ultra-sensibles.
+ */
+
+import CryptoJS from 'crypto-js';
+
+// Clave de cifrado - DEBE estar en variable de entorno en producción
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'steamworks_encryption_key_change_in_production_2026_ultra_secret';
+
+/**
+ * Cifra datos sensibles usando AES-256
+ * @param {string} data - Datos a cifrar
+ * @returns {string} - Datos cifrados en base64
+ */
+export function encrypt(data) {
+  if (!data) return null;
+  
+  try {
+    const encrypted = CryptoJS.AES.encrypt(data, ENCRYPTION_KEY);
+    return encrypted.toString();
+  } catch (error) {
+    console.error('Error al cifrar datos:', error);
+    throw new Error('Error al cifrar datos sensibles');
+  }
+}
+
+/**
+ * Descifra datos cifrados
+ * @param {string} encryptedData - Datos cifrados
+ * @returns {string} - Datos descifrados
+ */
+export function decrypt(encryptedData) {
+  if (!encryptedData) return null;
+  
+  try {
+    const decrypted = CryptoJS.AES.decrypt(encryptedData, ENCRYPTION_KEY);
+    return decrypted.toString(CryptoJS.enc.Utf8);
+  } catch (error) {
+    console.error('Error al descifrar datos:', error);
+    throw new Error('Error al descifrar datos sensibles');
+  }
+}
+
+/**
+ * Cifra información bancaria sensible
+ * @param {Object} bankData - Datos bancarios
+ * @returns {Object} - Datos bancarios cifrados
+ */
+export function encryptBankData(bankData) {
+  if (!bankData) return null;
+
+  return {
+    cuenta_bancaria: bankData.cuenta_bancaria ? encrypt(bankData.cuenta_bancaria) : null,
+    titular_banco: bankData.titular_banco || null, // No cifrar nombre (no es ultra-sensible)
+    nombre_banco: bankData.nombre_banco || null
+  };
+}
+
+/**
+ * Descifra información bancaria
+ * @param {Object} encryptedBankData - Datos bancarios cifrados
+ * @returns {Object} - Datos bancarios descifrados
+ */
+export function decryptBankData(encryptedBankData) {
+  if (!encryptedBankData) return null;
+
+  return {
+    cuenta_bancaria: encryptedBankData.cuenta_bancaria ? decrypt(encryptedBankData.cuenta_bancaria) : null,
+    titular_banco: encryptedBankData.titular_banco || null,
+    nombre_banco: encryptedBankData.nombre_banco || null
+  };
+}
+
+/**
+ * Hash de datos para verificación de integridad (SHA-256)
+ * Implementa RNF-006: Integridad de archivos
+ * @param {string} data - Datos a hashear
+ * @returns {string} - Hash SHA-256
+ */
+export function hashSHA256(data) {
+  if (!data) return null;
+  
+  return CryptoJS.SHA256(data).toString();
+}
+
+/**
+ * Verifica la integridad de datos comparando hashes
+ * @param {string} data - Datos originales
+ * @param {string} expectedHash - Hash esperado
+ * @returns {boolean} - True si coinciden
+ */
+export function verifyIntegrity(data, expectedHash) {
+  if (!data || !expectedHash) return false;
+  
+  const actualHash = hashSHA256(data);
+  return actualHash === expectedHash;
+}
+
+/**
+ * Enmascara datos sensibles para logs (muestra solo últimos 4 caracteres)
+ * @param {string} data - Dato sensible
+ * @returns {string} - Dato enmascarado
+ */
+export function maskSensitiveData(data) {
+  if (!data || typeof data !== 'string') return '****';
+  
+  if (data.length <= 4) return '****';
+  
+  return '*'.repeat(data.length - 4) + data.slice(-4);
+}

@@ -85,16 +85,20 @@ export const auditService = {
     resultado = RESULTADOS.EXITOSO
   }) {
     try {
-      // Llamar a la función de PostgreSQL para registrar
-      const { data, error } = await supabaseAdmin.rpc('registrar_auditoria', {
-        p_desarrollador_id: desarrolladorId,
-        p_accion: accion,
-        p_recurso: recurso,
-        p_detalles: detalles,
-        p_ip_address: ipAddress,
-        p_user_agent: userAgent,
-        p_resultado: resultado
-      });
+      // Insertar directamente en la tabla logs_auditoria_desarrolladores
+      const { data, error } = await supabaseAdmin
+        .from('logs_auditoria_desarrolladores')
+        .insert({
+          desarrollador_id: desarrolladorId,
+          accion: accion,
+          recurso: recurso,
+          detalles: detalles,
+          ip_address: ipAddress,
+          user_agent: userAgent,
+          resultado: resultado
+        })
+        .select('id')
+        .single();
 
       if (error) {
         console.error('Error al registrar auditoría:', error);
@@ -103,7 +107,7 @@ export const auditService = {
       }
 
       console.log(`[AUDIT] ${accion} - ${resultado} - Desarrollador: ${desarrolladorId || 'N/A'}`);
-      return data;
+      return data?.id;
     } catch (error) {
       console.error('Error crítico en auditoría:', error);
       return null;

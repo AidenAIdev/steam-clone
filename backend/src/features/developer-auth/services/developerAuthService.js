@@ -19,7 +19,7 @@ import {
   containsSQLInjection 
 } from '../../../shared/utils/sanitization.js';
 import { encryptBankData, decryptBankData } from '../../../shared/utils/encryption.js';
-import { auditService } from '../../../shared/services/auditService.js';
+import { auditService, ACCIONES_AUDITORIA, RESULTADOS } from '../../../shared/services/auditService.js';
 import { sessionService } from '../../../shared/services/sessionService.js';
 
 export const developerAuthService = {
@@ -56,15 +56,14 @@ export const developerAuthService = {
     // Validar email
     if (!isValidEmail(emailSanitizado)) {
       // Registrar intento fallido de registro
-      await auditService.registrarEvento(
-        null,
-        'REGISTRO',
-        'FALLO',
-        'Email inválido',
-        { email: emailSanitizado },
-        requestMetadata.ip_address,
-        requestMetadata.user_agent
-      );
+      await auditService.registrarEvento({
+        desarrolladorId: null,
+        accion: ACCIONES_AUDITORIA.REGISTRO,
+        resultado: RESULTADOS.FALLIDO,
+        detalles: { razon: 'Email inválido', email: emailSanitizado },
+        ipAddress: requestMetadata.ip_address,
+        userAgent: requestMetadata.user_agent
+      });
       throw new Error('Formato de email inválido');
     }
     
@@ -74,29 +73,31 @@ export const developerAuthService = {
         containsSQLInjection(banco || '') ||
         containsSQLInjection(titular_cuenta || '')) {
       // Registrar intento de inyección SQL
-      await auditService.registrarEvento(
-        null,
-        'REGISTRO',
-        'FALLO',
-        'Entrada inválida detectada - posible SQL injection',
-        { email: emailSanitizado, nombre_legal },
-        requestMetadata.ip_address,
-        requestMetadata.user_agent
-      );
+      await auditService.registrarEvento({
+        desarrolladorId: null,
+        accion: ACCIONES_AUDITORIA.REGISTRO,
+        resultado: RESULTADOS.FALLIDO,
+        detalles: { 
+          razon: 'Entrada inválida detectada - posible SQL injection',
+          email: emailSanitizado, 
+          nombre_legal 
+        },
+        ipAddress: requestMetadata.ip_address,
+        userAgent: requestMetadata.user_agent
+      });
       throw new Error('Entrada inválida detectada');
     }
 
     // Validar aceptación de términos (RF-001)
     if (!acepto_terminos) {
-      await auditService.registrarEvento(
-        null,
-        'REGISTRO',
-        'FALLO',
-        'Términos y condiciones no aceptados',
-        { email: emailSanitizado },
-        requestMetadata.ip_address,
-        requestMetadata.user_agent
-      );
+      await auditService.registrarEvento({
+        desarrolladorId: null,
+        accion: ACCIONES_AUDITORIA.REGISTRO,
+        resultado: RESULTADOS.FALLIDO,
+        detalles: { razon: 'Términos y condiciones no aceptados', email: emailSanitizado },
+        ipAddress: requestMetadata.ip_address,
+        userAgent: requestMetadata.user_agent
+      });
       throw new Error('Debe aceptar los términos y condiciones para registrarse');
     }
 
@@ -124,29 +125,31 @@ export const developerAuthService = {
 
     if (authError) {
       // Registrar error de autenticación
-      await auditService.registrarEvento(
-        null,
-        'REGISTRO',
-        'FALLO',
-        `Error en Supabase Auth: ${authError.message}`,
-        { email: emailSanitizado, error: authError.code },
-        requestMetadata.ip_address,
-        requestMetadata.user_agent
-      );
+      await auditService.registrarEvento({
+        desarrolladorId: null,
+        accion: ACCIONES_AUDITORIA.REGISTRO,
+        resultado: RESULTADOS.FALLIDO,
+        detalles: { 
+          razon: `Error en Supabase Auth: ${authError.message}`,
+          email: emailSanitizado, 
+          error: authError.code 
+        },
+        ipAddress: requestMetadata.ip_address,
+        userAgent: requestMetadata.user_agent
+      });
       throw authError;
     }
 
     const userId = authData.user?.id;
     if (!userId) {
-      await auditService.registrarEvento(
-        null,
-        'REGISTRO',
-        'FALLO',
-        'Error al crear usuario: ID no generado',
-        { email: emailSanitizado },
-        requestMetadata.ip_address,
-        requestMetadata.user_agent
-      );
+      await auditService.registrarEvento({
+        desarrolladorId: null,
+        accion: ACCIONES_AUDITORIA.REGISTRO,
+        resultado: RESULTADOS.FALLIDO,
+        detalles: { razon: 'Error al crear usuario: ID no generado', email: emailSanitizado },
+        ipAddress: requestMetadata.ip_address,
+        userAgent: requestMetadata.user_agent
+      });
       throw new Error('Error al crear usuario: ID no generado');
     }
 
@@ -177,15 +180,18 @@ export const developerAuthService = {
       // Rollback: eliminar usuario de auth si falla la inserción
       await supabaseAdmin.auth.admin.deleteUser(userId).catch(() => {});
       
-      await auditService.registrarEvento(
-        null,
-        'REGISTRO',
-        'FALLO',
-        `Error al crear perfil de desarrollador: ${devError.message}`,
-        { email: emailSanitizado, user_id: userId },
-        requestMetadata.ip_address,
-        requestMetadata.user_agent
-      );
+      await auditService.registrarEvento({
+        desarrolladorId: null,
+        accion: ACCIONES_AUDITORIA.REGISTRO,
+        resultado: RESULTADOS.FALLIDO,
+        detalles: { 
+          razon: `Error al crear perfil de desarrollador: ${devError.message}`,
+          email: emailSanitizado, 
+          user_id: userId 
+        },
+        ipAddress: requestMetadata.ip_address,
+        userAgent: requestMetadata.user_agent
+      });
       throw new Error(`Error al crear perfil de desarrollador: ${devError.message}`);
     }
 
@@ -200,25 +206,29 @@ export const developerAuthService = {
       if (mfaError) {
         console.error('Error al configurar MFA automático:', mfaError);
         // No lanzar error, solo registrar - el registro fue exitoso
-        await auditService.registrarEvento(
-          userId,
-          'CONFIGURACION_MFA',
-          'FALLO',
-          `Error al habilitar MFA automático: ${mfaError.message}`,
-          { email: emailSanitizado },
-          requestMetadata.ip_address,
-          requestMetadata.user_agent
-        );
+        await auditService.registrarEvento({
+          desarrolladorId: userId,
+          accion: ACCIONES_AUDITORIA.MFA_HABILITADO,
+          resultado: RESULTADOS.FALLIDO,
+          detalles: { 
+            razon: `Error al habilitar MFA automático: ${mfaError.message}`,
+            email: emailSanitizado 
+          },
+          ipAddress: requestMetadata.ip_address,
+          userAgent: requestMetadata.user_agent
+        });
       } else {
-        await auditService.registrarEvento(
-          userId,
-          'CONFIGURACION_MFA',
-          'EXITO',
-          'MFA configurado automáticamente al registrarse',
-          { email: emailSanitizado },
-          requestMetadata.ip_address,
-          requestMetadata.user_agent
-        );
+        await auditService.registrarEvento({
+          desarrolladorId: userId,
+          accion: ACCIONES_AUDITORIA.MFA_HABILITADO,
+          resultado: RESULTADOS.EXITOSO,
+          detalles: { 
+            razon: 'MFA configurado automáticamente al registrarse',
+            email: emailSanitizado 
+          },
+          ipAddress: requestMetadata.ip_address,
+          userAgent: requestMetadata.user_agent
+        });
       }
     } catch (mfaConfigError) {
       console.error('Error inesperado al configurar MFA:', mfaConfigError);
@@ -272,7 +282,6 @@ export const developerAuthService = {
     if (authError) {
       // Registrar intento de login fallido (RNF-008)
       await auditService.registrarLoginFallido(
-        null,
         emailSanitizado,
         `Error de autenticación: ${authError.message}`,
         requestMetadata.ip_address,
@@ -298,10 +307,10 @@ export const developerAuthService = {
       // Registrar acceso no autorizado
       await auditService.registrarAccesoNoAutorizado(
         userId,
-        emailSanitizado,
-        'Usuario no registrado como desarrollador o cuenta inactiva',
+        `desarrollador:${emailSanitizado}`,
         requestMetadata.ip_address,
-        requestMetadata.user_agent
+        requestMetadata.user_agent,
+        'Usuario no registrado como desarrollador o cuenta inactiva'
       );
       
       throw new Error('Acceso denegado: Usuario no registrado como desarrollador');
@@ -320,15 +329,17 @@ export const developerAuthService = {
     } catch (sessionError) {
       console.error('Error al crear sesión en BD:', sessionError);
       // No lanzar error, la sesión de Supabase existe
-      await auditService.registrarEvento(
-        userId,
-        'LOGIN',
-        'FALLO',
-        `Error al registrar sesión en BD: ${sessionError.message}`,
-        { email: emailSanitizado },
-        requestMetadata.ip_address,
-        requestMetadata.user_agent
-      );
+      await auditService.registrarEvento({
+        desarrolladorId: userId,
+        accion: ACCIONES_AUDITORIA.LOGIN,
+        resultado: RESULTADOS.FALLIDO,
+        detalles: { 
+          razon: `Error al registrar sesión en BD: ${sessionError.message}`,
+          email: emailSanitizado 
+        },
+        ipAddress: requestMetadata.ip_address,
+        userAgent: requestMetadata.user_agent
+      });
     }
 
     // 4. Actualizar última sesión
@@ -340,9 +351,9 @@ export const developerAuthService = {
     // 5. Registrar login exitoso (RNF-008)
     await auditService.registrarLogin(
       userId,
-      emailSanitizado,
       requestMetadata.ip_address,
-      requestMetadata.user_agent
+      requestMetadata.user_agent,
+      { email: emailSanitizado }
     );
 
     // 6. Descifrar datos bancarios antes de retornar

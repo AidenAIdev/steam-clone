@@ -28,8 +28,15 @@ const PORT = process.env.PORT || 3000;
 app.use(securityHeaders);
 app.use(additionalSecurityHeaders);
 
-// CORS
-app.use(cors());
+// CORS - configured for secure cookie handling
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  credentials: true // Allow cookies to be sent
+}));
+
+// Cookie parser for httpOnly cookies
+import cookieParser from 'cookie-parser';
+app.use(cookieParser());
 
 // Body parsing
 app.use(express.json());

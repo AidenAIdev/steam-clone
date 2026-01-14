@@ -7,12 +7,8 @@ export const inventoryService = {
      * @returns {Promise<Array>} - Lista de items del inventario
      */
     async getInventory(userId) {
-        const token = localStorage.getItem('supabase.auth.token');
-
         const response = await fetch(`${API_URL}/inventory/${userId}`, {
-            headers: {
-                'Authorization': token ? `Bearer ${token}` : ''
-            }
+            credentials: 'include' // httpOnly cookie sent automatically
         });
 
         const data = await response.json();
@@ -26,12 +22,8 @@ export const inventoryService = {
      * @returns {Promise<Object>} - Item
      */
     async getItem(itemId) {
-        const token = localStorage.getItem('supabase.auth.token');
-
         const response = await fetch(`${API_URL}/inventory/item/${itemId}`, {
-            headers: {
-                'Authorization': token ? `Bearer ${token}` : ''
-            }
+            credentials: 'include' // httpOnly cookie sent automatically
         });
 
         const data = await response.json();
@@ -44,14 +36,12 @@ export const inventoryService = {
      * @param {Array} steamItems - Items de Steam { steam_item_id, is_tradeable, is_marketable, is_locked }
      */
     async syncInventory(steamItems) {
-        const token = localStorage.getItem('supabase.auth.token');
-
         const response = await fetch(`${API_URL}/inventory/sync`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
+                'Content-Type': 'application/json'
             },
+            credentials: 'include', // httpOnly cookie sent automatically
             body: JSON.stringify({ steamItems })
         });
 

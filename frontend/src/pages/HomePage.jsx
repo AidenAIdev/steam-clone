@@ -120,7 +120,7 @@ export const HomePage = () => {
             {/* Desktop Navigation */}
             <nav className="hidden md:flex items-center gap-6">
               <a href="#" className="text-gray-300 hover:text-white transition-colors duration-200 font-medium">Tienda</a>
-              <Link to="/marketplace" className="text-gray-300 hover:text-white transition-colors duration-200 font-medium">Comunidad</Link>
+              <Link to="/marketplace" className="text-gray-300 hover:text-white transition-colors duration-200 font-medium">Marketplace</Link>
               <Link to="/inventory" className="text-gray-300 hover:text-white transition-colors duration-200 font-medium">Biblioteca</Link>
             </nav>
 

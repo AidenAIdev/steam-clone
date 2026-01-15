@@ -8,6 +8,9 @@ import { authRoutes } from './src/features/auth/index.js';
 // Import developer auth routes (Steamworks)
 import { developerAuthRoutes } from './src/features/developer-auth/index.js';
 
+// Import admin routes
+import { adminRoutes } from './src/features/admin/index.js';
+
 // Import inventory routes (Esteban - Gestión de Inventario)
 import { inventoryRoutes } from './src/features/inventory/index.js';
 
@@ -51,6 +54,9 @@ app.use('/api/auth', apiLimiter, authRoutes);
 
 // Developer auth routes (Steamworks - desarrolladores)
 app.use('/api/desarrolladores/auth', apiLimiter, developerAuthRoutes);
+
+// Admin routes
+app.use('/api/admin', apiLimiter, adminRoutes);
 
 // Inventory routes (Esteban - Gestión de Inventario)
 app.use('/api/inventory', inventoryRoutes);

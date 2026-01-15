@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { ShoppingCart, Repeat, Search, DollarSign, Filter, Package, X } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ShoppingCart, Repeat, Search, DollarSign, Filter, Package, X, ArrowLeft } from 'lucide-react';
 import { inventoryService } from '../services/inventoryService';
 import { useAuth } from '../../../shared/context/AuthContext';
 import { useInventory } from '../hooks/useInventory';
@@ -45,6 +46,20 @@ export const MarketplacePage = () => {
     alert(`Has enviado una propuesta para el intercambio #${offerId}. (Mock)`);
   };
 
+  const handleCancelListing = async (listingId) => {
+    if(!confirm("¿Estás seguro de que quieres cancelar esta venta? El item volverá a tu inventario.")) return;
+
+    try {
+      await inventoryService.cancelListing(listingId);
+      // Eliminar de la lista local
+      setMarketItems(prevItems => prevItems.filter(i => i.id !== listingId));
+      alert("Venta cancelada exitosamente.");
+    } catch (error) {
+      console.error("Error cancelling listing:", error);
+      alert("Error al cancelar la venta: " + error.message);
+    }
+  };
+
   const handleSellItem = () => {
     setShowSellModal(true);
     setSelectedSellItem(null);
@@ -76,6 +91,13 @@ export const MarketplacePage = () => {
       {/* Page Header */}
       <div className="bg-[#171a21] py-8 shadow-lg">
         <div className="max-w-7xl mx-auto px-4">
+          <div className="mb-6">
+            <Link to="/inventory" className="inline-flex items-center gap-2 text-gray-400 hover:text-white transition-colors">
+              <ArrowLeft size={20} />
+              <span>Volver al Inventario</span>
+            </Link>
+          </div>
+
           <h1 className="text-3xl font-bold mb-4 flex items-center gap-3">
             <DollarSign className="text-green-500" size={32} />
             Mercado de la Comunidad
@@ -138,16 +160,29 @@ export const MarketplacePage = () => {
                         <div className="h-32 bg-gradient-to-br from-gray-700 to-gray-800 rounded-md mb-3 flex items-center justify-center">
                             <Package className="text-gray-500 group-hover:text-blue-400 transition" size={48} />
                         </div>
-                        <h3 className="font-semibold text-blue-300 truncate">{item.itemName}</h3>
-                        <p className="text-xs text-gray-400 mb-2">{item.game}</p>
+                        <h3 className="font-semibold text-blue-300 truncate">{item.name || item.itemName || `Item #${item.steam_item_id}`}</h3>
+                        <p className="text-xs text-gray-400 mb-2">{item.game || "Steam"}</p>
                         <div className="flex justify-between items-center mt-3">
-                          <span className="text-green-400 font-bold text-lg">${item.price.toFixed(2)}</span>
-                          <button 
-                            onClick={() => handleBuyItem(item.itemName, item.price)}
-                            className="bg-green-600 hover:bg-green-500 px-3 py-1 rounded text-sm font-medium transition"
-                          >
-                            Comprar
-                          </button>
+                          <span className="text-green-400 font-bold text-lg">
+                            ${typeof item.price === 'number' ? item.price.toFixed(2) : parseFloat(item.price).toFixed(2)}
+                          </span>
+                          
+                          {/* Botón condicional: Cancelar si soy dueño (por ID o nombre), Comprar si es otro */}
+                          {(item.seller_id === user?.id || item.seller === user?.username) ? (
+                              <button 
+                                onClick={() => handleCancelListing(item.id)}
+                                className="bg-red-600 hover:bg-red-500 px-3 py-1 rounded text-sm font-medium transition"
+                              >
+                                Cancelar
+                              </button>
+                          ) : (
+                              <button 
+                                onClick={() => handleBuyItem(item.name || item.itemName, item.price)}
+                                className="bg-green-600 hover:bg-green-500 px-3 py-1 rounded text-sm font-medium transition"
+                              >
+                                Comprar
+                              </button>
+                          )}
                         </div>
                         <div className="text-xs text-gray-500 mt-2 text-right">
                           Vendedor: {item.seller}

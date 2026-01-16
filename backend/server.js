@@ -14,6 +14,9 @@ import { adminRoutes } from './src/features/admin/index.js';
 // Import inventory routes (Esteban - Gestión de Inventario)
 import { inventoryRoutes } from './src/features/inventory/index.js';
 
+// Import MFA routes
+import mfaRoutes from './src/features/mfa/routes/mfaRoutes.js';
+
 // Import security middleware (Grupo 2 - Seguridad)
 import { securityHeaders, additionalSecurityHeaders } from './src/shared/middleware/securityHeaders.js';
 import { apiLimiter } from './src/shared/middleware/rateLimiter.js';
@@ -57,6 +60,9 @@ app.use('/api/desarrolladores/auth', apiLimiter, developerAuthRoutes);
 
 // Admin routes
 app.use('/api/admin', apiLimiter, adminRoutes);
+
+// MFA routes
+app.use('/api/mfa', apiLimiter, mfaRoutes);
 
 // Inventory routes (Esteban - Gestión de Inventario)
 app.use('/api/inventory', inventoryRoutes);

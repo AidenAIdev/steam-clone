@@ -1,4 +1,5 @@
 import adminService from '../services/adminService.js';
+import mfaService from '../../mfa/services/mfaService.js';
 
 const adminController = {
   /**
@@ -20,6 +21,17 @@ const adminController = {
 
       const result = await adminService.login(email, password, ipAddress, userAgent);
 
+      // Si requiere MFA, no devolver token aún
+      if (result.requiresMFA) {
+        return res.status(200).json({
+          success: true,
+          requiresMFA: true,
+          adminId: result.adminId,
+          email: result.email,
+          message: 'Ingresa tu código de autenticación de dos factores',
+        });
+      }
+
       res.status(200).json({
         success: true,
         message: 'Login exitoso',
@@ -30,6 +42,50 @@ const adminController = {
       res.status(401).json({
         success: false,
         message: error.message || 'Error al iniciar sesión',
+      });
+    }
+  },
+
+  /**
+   * Verificar MFA y completar login
+   */
+  verifyMFALogin: async (req, res) => {
+    try {
+      const { adminId, token } = req.body;
+
+      if (!adminId || !token) {
+        return res.status(400).json({
+          success: false,
+          message: 'Admin ID y código de verificación requeridos',
+        });
+      }
+
+      // Verificar el código TOTP
+      const verified = await mfaService.verifyTOTP(adminId, token);
+
+      if (!verified) {
+        return res.status(401).json({
+          success: false,
+          message: 'Código de verificación inválido',
+        });
+      }
+
+      // Completar el login
+      const ipAddress = req.ip || req.connection.remoteAddress;
+      const userAgent = req.headers['user-agent'];
+      
+      const result = await adminService.completeMFALogin(adminId, ipAddress, userAgent);
+
+      res.status(200).json({
+        success: true,
+        message: 'Login exitoso',
+        ...result,
+      });
+    } catch (error) {
+      console.error('Error al verificar MFA:', error);
+      res.status(401).json({
+        success: false,
+        message: error.message || 'Error al verificar código',
       });
     }
   },

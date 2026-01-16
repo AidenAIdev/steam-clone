@@ -6,6 +6,7 @@ const router = express.Router();
 
 // Rutas públicas (no requieren autenticación)
 router.post('/login', adminController.login);
+router.post('/verify-mfa-login', adminController.verifyMFALogin);
 
 // Rutas protegidas (requieren autenticación de admin)
 router.post('/logout', adminMiddleware.verificarAdmin, adminController.logout);

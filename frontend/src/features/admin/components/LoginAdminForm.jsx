@@ -1,19 +1,25 @@
 /**
  * Formulario de Login para Administradores
  * Diseño oscuro estilo Steam con branding administrativo
+ * Incluye soporte para MFA/TOTP obligatorio
  */
 
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import useAdminAuth from '../hooks/useAdminAuth';
+import MFAVerification from '../../mfa/components/MFAVerification';
+import MFASetupRequired from '../../mfa/components/MFASetupRequired';
 
 const LoginAdminForm = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [requiresMFA, setRequiresMFA] = useState(false);
+  const [requiresSetupMFA, setRequiresSetupMFA] = useState(false);
+  const [mfaData, setMfaData] = useState(null);
   
-  const { login } = useAdminAuth();
+  const { login, updateAdmin } = useAdminAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -22,14 +28,84 @@ const LoginAdminForm = () => {
     setLoading(true);
 
     try {
-      await login(email, password);
-      navigate('/steamworks/admin-dashboard');
+      const result = await login(email, password);
+      
+      // Si requiere configurar MFA (primera vez)
+      if (result?.requiresSetupMFA) {
+        setMfaData({
+          adminId: result.adminId,
+          email: result.email,
+          tempToken: result.tempToken
+        });
+        setRequiresSetupMFA(true);
+      }
+      // Si requiere verificación MFA (ya configurado)
+      else if (result?.requiresMFA) {
+        setMfaData({
+          adminId: result.adminId,
+          email: result.email
+        });
+        setRequiresMFA(true);
+      } else {
+        // Login exitoso sin MFA (no debería pasar con el nuevo flujo)
+        navigate('/steamworks/admin-dashboard');
+      }
     } catch (err) {
       setError(err.message || 'Credenciales inválidas');
     } finally {
       setLoading(false);
     }
   };
+
+  const handleMFASuccess = (userData) => {
+    // Actualizar el contexto con los datos del usuario
+    if (userData) {
+      updateAdmin(userData);
+    }
+    // Después de verificar MFA exitosamente, redirigir al dashboard
+    navigate('/steamworks/admin-dashboard');
+  };
+
+  const handleMFACancel = () => {
+    // Volver al formulario de login
+    setRequiresMFA(false);
+    setRequiresSetupMFA(false);
+    setMfaData(null);
+    setEmail('');
+    setPassword('');
+  };
+
+  const handleSetupError = (error) => {
+    // Si hay error en setup, volver al login
+    setRequiresSetupMFA(false);
+    setMfaData(null);
+    setError(error.message || 'Error al configurar MFA');
+  };
+
+  // Si se requiere configurar MFA (primera vez)
+  if (requiresSetupMFA && mfaData) {
+    return (
+      <MFASetupRequired
+        adminId={mfaData.adminId}
+        email={mfaData.email}
+        tempToken={mfaData.tempToken}
+        onSuccess={handleMFASuccess}
+        onError={handleSetupError}
+      />
+    );
+  }
+
+  // Si se requiere verificar MFA (ya configurado)
+  if (requiresMFA && mfaData) {
+    return (
+      <MFAVerification
+        adminId={mfaData.adminId}
+        email={mfaData.email}
+        onSuccess={handleMFASuccess}
+        onCancel={handleMFACancel}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-linear-to-b from-[#1a1a2e] to-[#16213e] flex items-center justify-center p-4">

@@ -27,6 +27,26 @@ const adminAuthService = {
       throw new Error(data.message || 'Error al iniciar sesión');
     }
     
+    // Si requiere configurar MFA (primera vez)
+    if (data.requiresSetupMFA) {
+      return {
+        requiresSetupMFA: true,
+        adminId: data.adminId,
+        email: data.email,
+        tempToken: data.tempToken
+      };
+    }
+    
+    // Si requiere verificar MFA (ya configurado)
+    if (data.requiresMFA) {
+      return {
+        requiresMFA: true,
+        adminId: data.adminId,
+        email: data.email
+      };
+    }
+    
+    // Login exitoso
     if (data.token) {
       localStorage.setItem('adminToken', data.token);
       localStorage.setItem('adminUser', JSON.stringify(data.user));

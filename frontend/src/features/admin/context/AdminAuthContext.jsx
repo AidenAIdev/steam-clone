@@ -51,12 +51,17 @@ export const AdminAuthProvider = ({ children }) => {
     }
   };
 
+  const updateAdmin = (userData) => {
+    setAdmin(userData);
+  };
+
   const value = {
     admin,
     loading,
     error,
     login,
     logout,
+    updateAdmin,
     isAuthenticated: !!admin,
   };
 

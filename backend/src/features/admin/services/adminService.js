@@ -36,28 +36,77 @@ const adminService = {
         throw new Error('Acceso denegado: No eres un administrador activo');
       }
 
+      // Verificar si tiene MFA habilitado
+      if (admin.mfa_habilitado) {
+        // Si tiene MFA, no crear sesión aún, devolver que necesita MFA
+        return {
+          requiresMFA: true,
+          adminId: userId,
+          email: authData.user.email,
+          tempToken: accessToken // Token temporal para verificar MFA
+        };
+      }
+
+      // Si no tiene MFA, requiere configurarlo (obligatorio)
+      return {
+        requiresSetupMFA: true,
+        adminId: userId,
+        email: authData.user.email,
+        tempToken: accessToken // Token temporal para configurar MFA
+      };
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  /**
+   * Completar login después de verificar MFA
+   */
+  completeMFALogin: async (adminId, ipAddress, userAgent) => {
+    try {
+      // Obtener datos del admin
+      const { data: admin, error: adminError } = await supabaseAdmin
+        .from('admins')
+        .select('*')
+        .eq('id', adminId)
+        .eq('cuenta_activa', true)
+        .single();
+
+      if (adminError || !admin) {
+        throw new Error('Administrador no encontrado');
+      }
+
+      // Obtener el token actual de Supabase
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !session) {
+        throw new Error('No se pudo obtener la sesión');
+      }
+
+      const accessToken = session.access_token;
+      const refreshToken = session.refresh_token;
+
       // Crear registro de sesión en la base de datos para auditoría
-      const { error: sessionError } = await supabaseAdmin
+      const { error: sessionInsertError } = await supabaseAdmin
         .from('sesiones_admin')
         .insert({
-          admin_id: userId,
+          admin_id: adminId,
           access_token: accessToken,
           ip_address: ipAddress,
           user_agent: userAgent,
           activa: true,
         });
 
-      if (sessionError) {
-        console.error('Error al crear registro de sesión:', sessionError);
-        // No fallar, solo es para auditoría
+      if (sessionInsertError) {
+        console.error('Error al crear registro de sesión:', sessionInsertError);
       }
 
       // Registrar en audit log
       await adminService.registrarAuditLog(
-        userId,
-        'login',
+        adminId,
+        'login_mfa_verificado',
         'sesion_admin',
-        { email },
+        { email: admin.email },
         ipAddress,
         userAgent,
         'exito'
@@ -67,8 +116,8 @@ const adminService = {
         token: accessToken,
         refreshToken,
         user: {
-          id: userId,
-          email: authData.user.email,
+          id: adminId,
+          email: admin.email,
           rol: admin.rol,
           permisos: admin.permisos,
         },

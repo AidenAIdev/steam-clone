@@ -10,7 +10,7 @@ import { useTrade } from '../hooks/useTrade';
 export const MarketplacePage = () => {
   const { user } = useAuth();
   const { inventory } = useInventory(user?.id);
-  const { tradesForMe, postTradeOffer, getOffersForTrade, acceptTrade } = useTrade(user?.id);
+  const { tradesForMe, postTradeOffer, getOffersForTrade, acceptTrade, cancelTradeById, cancelTradeOffer } = useTrade(user?.id);
   const [activeTab, setActiveTab] = useState('market'); // 'market' | 'trading'
   const [marketItems, setMarketItems] = useState([]);
   const [trades, setTrades] = useState([]);
@@ -20,6 +20,7 @@ export const MarketplacePage = () => {
   const [showSellModal, setShowSellModal] = useState(false);
   const [showTradeOfferModal, setShowTradeOfferModal] = useState(false);
   const [showTradeOfferForMeModal, setShowTradeOfferForMeModal] = useState(false);
+  const [showCancelTradeModal, setShowCancelTradeModal] = useState(false);
   const [selectedSellItem, setSelectedSellItem] = useState(null);
   const [sellPrice, setSellPrice] = useState('');
 
@@ -248,10 +249,12 @@ export const MarketplacePage = () => {
                       </div>
 
                       <div className="flex items-center gap-4">
-                          <span className="text-yellow-400 text-sm font-medium px-3 py-1 bg-yellow-900/20 rounded">
-                              {trade.status}
-                          </span>
-                      </div>
+                      {trade.offerer_id === user?.id && (
+                        <button onClick={() => setShowCancelTradeModal(true)} 
+                        className="flex-1 px-2 bg-red-600 hover:bg-red-500 text-white font-medium py-3 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-lg shadow-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed">
+                          Cancelar Intercambio
+                        </button>
+                        )}
                       {trade.offerer_id === user?.id && (
                         <button onClick={()=>{getOffersForTrade(trade.id)
                           setShowTradeOfferForMeModal(true);
@@ -260,13 +263,51 @@ export const MarketplacePage = () => {
                         </button>
                         )}
 
-                      {trade.offerer_id === user?.id && (
-                        <button onClick={()=>{getOffersForTrade(trade.id)
-                          setShowTradeOfferForMeModal(true);
-                        }} className="bg-[#2a475e] hover:bg-blue-600 px-6 py-3 rounded font-medium transition">
-                          Cancelar Intercambio
-                        </button>
-                        )}
+                      </div>
+
+                      {
+                        showCancelTradeModal && (
+                          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+                            <div className="bg-[#1b2838] rounded-xl shadow-2xl max-w-md w-full border border-[#2a475e] flex flex-col">
+                              {/* Modal Header */}  
+                              <div className="p-6 border-b border-[#2a475e] flex justify-between items-center bg-[#171a21] rounded-t-xl">
+                                <h2 className="text-xl font-bold text-white">Cancelar Intercambio</h2>
+                                <button
+                                  onClick={() => setShowCancelTradeModal(false)}
+                                  className="text-gray-400 hover:text-white"
+                                >
+                                  <X size={20} />
+                                </button>
+                              </div>
+                              {/* Modal Content */}
+                              <div className="p-6 flex-1">
+                                <p className="text-gray-400 mb-4">
+                                  ¿Estás seguro de que deseas cancelar este intercambio? Esta acción no se puede deshacer.
+                                </p>
+                                <div className="flex justify-end gap-3">
+                                  <button
+                                    onClick={() => setShowCancelTradeModal(false)}
+                                    className="px-4 py-2 bg-[#2a475e] hover:bg-[#3a577e] text-white rounded-lg font-medium transition-colors"
+                                  >
+                                    Cancelar
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      cancelTradeById(trade.id);
+                                      setShowCancelTradeModal(false);
+                                    }}
+                                    className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg font-medium transition-colors"
+                                  >
+                                    Confirmar Cancelación
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      }
+
+
                         
                         {trade.offerer_id !== user?.id && (
                         <button 

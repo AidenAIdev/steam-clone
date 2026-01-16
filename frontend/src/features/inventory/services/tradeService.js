@@ -37,6 +37,17 @@ export const tradeService = {
 		return data.data;
 	},
 
+	async cancelTradeById(tradeId) {
+		const response = await fetch(`${API_URL}/trade/reject/${tradeId}`, {
+			method: 'POST',
+			credentials: 'include',
+		});
+		const data = await response.json();
+		console.log(data);
+		if (!data.success) throw new Error(data.message);
+		return data.data;
+	},
+
 	async postTradeOffer(offererId, tradeId, itemId) {
 		const response = await fetch(`${API_URL}/trade/offer`, {
 			method: 'POST',
@@ -48,6 +59,15 @@ export const tradeService = {
 		});
 		const data = await response.json();
 		console.log(data);
+		if (!data.success) throw new Error(data.message);
+		return data.data;
+	},
+
+	async getTradeOffersByItemId(itemId) {
+		const response = await fetch(`${API_URL}/trade/offer/${itemId}`, {
+			credentials: 'include',
+		});
+		const data = await response.json();
 		if (!data.success) throw new Error(data.message);
 		return data.data;
 	},

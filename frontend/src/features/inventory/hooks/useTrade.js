@@ -48,6 +48,20 @@ export const useTrade = (userId) => {
 		}
 	};
 
+	const cancelTradeById = async (tradeId) => {
+		try {
+			setLoading(true);
+			const response = await tradeService.cancelTradeById(tradeId);
+			setError(null);
+			return response;
+		} catch (err) {
+			setError(err.message);
+			throw err;
+		} finally {
+			setLoading(false);
+		}
+	};
+
 	useEffect(() => {
 		fetchActiveTrades();
 	}, []);
@@ -56,6 +70,20 @@ export const useTrade = (userId) => {
 		try {
 			setLoading(true);
 			const response = await tradeService.postTradeOffer(userId, tradeId, itemId);
+			setError(null);
+			return response;
+		} catch (err) {
+			setError(err.message);
+			throw err;
+		} finally {
+			setLoading(false);
+		}
+	};
+
+	const getTradeOffersByItemId = async (itemId) => {
+		try {
+			setLoading(true);
+			const response = await tradeService.getTradeOffersByItemId(itemId);
 			setError(null);
 			return response;
 		} catch (err) {
@@ -104,8 +132,10 @@ export const useTrade = (userId) => {
 		postTrade,
 		postTradeOffer,
 		acceptTrade,
+		cancelTradeById,
 
-		cancelTradeOffer,
 		getOffersForTrade,
+		getTradeOffersByItemId,
+		cancelTradeOffer,
 	};
 };

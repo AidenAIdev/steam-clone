@@ -11,10 +11,12 @@ tradeRouter.post('/post', requireAuth, tradeController.postTrade);
 // Aceptar un trade
 tradeRouter.post('/accept/:tradeOfferId', requireAuth, tradeController.acceptTrade);
 // Cancelar un trade
-tradeRouter.post('/reject/:tradeOfferId', requireAuth, tradeController.cancelTrade);
+tradeRouter.post('/reject/:tradeId', requireAuth, tradeController.cancelTrade);
 
 // Enviar oferta para un trade
 tradeRouter.post('/offer', requireAuth, tradeController.postTradeOffer);
+// Obtener oferta de un item
+tradeRouter.get('/offer/:itemId', tradeController.getTradeOffersByItemId);
 // Obtener ofertas de un trade
 tradeRouter.get('/offers/:tradeId', tradeController.getOffersForTrade);
 // cancelar oferta de un trade

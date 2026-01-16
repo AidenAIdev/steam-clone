@@ -124,45 +124,23 @@ export const tradeService = {
 		return data;
 	},
 
-	async canceltradeById(tradeId) {
-		const { data, error } = await supabase
-			.from('trade')
-			.update({
-				status: ALLOWED_STATUSES.CANCELLED,
-				expired_at: new Date().toISOString(),
-				is_locked: false,
-			})
-			.eq('id', tradeId)
-			.select();
-		if (error) throw error;
+	async cancelTradeById(tradeId) {
+		try {
+			const { data, error } = await supabase.rpc('cancel_trade_by_id', {
+				trade_id_param: tradeId,
+			});
 
-		// librar el item asociado
-		const { item, itemError } = await supabase
-			.from('items')
-			.update({
-				is_locked: false,
-			})
-			.eq('id', data[0].item_id)
-			.select()
-			.single();
-		if (itemError) throw itemError;
+			if (error) throw error;
 
-		// rechazar todas las ofertas asociadas
-		const { data: offersData, error: offersError } = await supabase
-			.from('trade_offer')
-			.update({
-				status: ALLOWED_STATUSES.CANCELLED,
-			})
-			.eq('trade_id', tradeId)
-			.eq('status', ALLOWED_STATUSES.PENDING)
-			.select();
-		if (offersError) throw offersError;
+			if (!data.success) {
+				throw new Error(data.message);
+			}
 
-		return {
-			success: true,
-			data,
-			message: 'Intercambio cancelado exitosamente',
-		};
+			return data;
+		} catch (error) {
+			console.error('Error al cancelar el trade:', error);
+			throw error;
+		}
 	},
 
 	// Métodos específicos para cada estado (opcionales, para mayor claridad)
@@ -203,34 +181,6 @@ export const tradeService = {
 	},
 };
 
-// Método genérico para actualizar estado
-const updateTradeOfferStatus = async (id, newStatus) => {
-	// Validar el estado
-	if (!isValidStatus(newStatus)) {
-		throw new Error(
-			`Estado inválido. Los estados permitidos son: ${Object.values(
-				ALLOWED_STATUSES
-			).join(', ')}`
-		);
-	}
-
-	const { data, error } = await supabase
-		.from('trade_offers')
-		.update({
-			status: newStatus,
-		})
-		.eq('id', id)
-		.select();
-
-	if (error) throw error;
-
-	return {
-		success: true,
-		data,
-		message: `Estado actualizado a: ${newStatus}`,
-	};
-};
-
 export const tradeOfferService = {
 	async postTradeOffer(offererId, tradeId, itemId) {
 		try {
@@ -253,25 +203,38 @@ export const tradeOfferService = {
 		}
 	},
 
-	async cancelTradeOffer(id) {
-		// liberar el item ofrecido
-		const { tradeOffer, error } = await supabase
-			.from('trade_offer')
-			.eq('id', id)
-			.select()
-			.single();
-		if (error) throw error;
+	async getTradeOfferByItemId(itemId) {
+		try {
+			console.log(itemId);
+			const { data, error } = await supabase
+				.from('trade_offer')
+				.select('*')
+				.eq('item_id', itemId)
+				.eq('status', 'Pendiente')
+				.maybeSingle();
 
-		const { item, itemError } = await supabase
-			.from('items')
-			.update({
-				is_locked: false,
-			})
-			.eq('id', tradeOffer.item_id)
-			.select()
-			.single();
-		if (itemError) throw itemError;
+			if (error) throw error;
+			return data;
+		} catch (error) {
+			console.error('Error getting trade offer by item ID:', error);
+			throw error;
+		}
+	},
 
-		return updateTradeOfferStatus(id, ALLOWED_STATUSES.CANCELLED);
+	async cancelTradeOfferServ(id) {
+		try {
+			await new Promise((resolve) => setTimeout(resolve, 5000));
+
+			const { data, error } = await supabase.rpc('cancel_trade_offer_and_unlock', {
+				offer_id_param: id,
+			});
+
+			if (error) throw error;
+
+			return data[0];
+		} catch (error) {
+			console.error('Error en el proceso de cancelación:', error.message);
+			throw error;
+		}
 	},
 };

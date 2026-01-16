@@ -9,7 +9,7 @@ import { useTrade } from '../hooks/useTrade';
 export const InventoryPage = () => {
   const { user } = useAuth();
   const { inventory, loading, error, refetch } = useInventory(user?.id);
-  const { postTrade, loading: tradesLoading, error: tradesError, refetch: refetchTrades } = useTrade();
+  const { postTrade , getTradeOffersByItemId, cancelTradeOffer} = useTrade();
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
   const [sortBy, setSortBy] = useState('id'); // 'id', 'tradeable', 'marketable'
@@ -20,11 +20,21 @@ export const InventoryPage = () => {
   const [showSellModal, setShowSellModal] = useState(false);
   const [sellPrice, setSellPrice] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [itemActualModalSell, setItemActualModalSell] = useState(null);
 
-  const handleSellClick = () => {
+  const handleSellClick = async () => {
      setShowSellModal(true);
      setSellPrice('');
   };
+
+  const handleCancelTradeOffer = () => {
+    cancelTradeOffer(itemActualModalSell.id);
+  };
+
+  const checkItemIsOffered = async (itemId)=>{
+    const item = await getTradeOffersByItemId(itemId)
+    if(item) setItemActualModalSell(item)
+  }
 
   const handleConfirmSell = async () => {
       if (!selectedItem || !sellPrice) return;
@@ -276,7 +286,8 @@ export const InventoryPage = () => {
             {filteredInventory.map((item) => (
               <div
                 key={item.id}
-                onClick={() => setSelectedItem(item)}
+                onClick={() => {setSelectedItem(item)
+                  checkItemIsOffered(item.id)}}
                 className="bg-[#16202d] rounded-xl overflow-hidden border border-gray-700 hover:border-blue-500 transition-all hover:transform hover:scale-[1.02] cursor-pointer group relative"
               >
                 <div className="relative aspect-square bg-gradient-to-br from-gray-700 to-gray-800 flex items-center justify-center">
@@ -302,7 +313,7 @@ export const InventoryPage = () => {
                 </div>
                 <div className="p-3">
                   <h3 className="text-white text-sm font-medium truncate group-hover:text-blue-400 transition-colors">
-                    Item #{item.steam_item_id}
+                    {item.name}
                   </h3>
                   <div className="flex gap-2 mt-2 flex-wrap">
                     {item.is_tradeable && !item.is_locked && (
@@ -343,7 +354,7 @@ export const InventoryPage = () => {
                     </div>
                   </div>
                   <div className="md:col-span-3">
-                    <h3 className="text-white font-medium">Item #{item.steam_item_id}</h3>
+                    <h3 className="text-white font-medium">{item.name}</h3>
                   </div>
                   <div className="md:col-span-3">
                     {item.is_locked ? (
@@ -416,7 +427,7 @@ export const InventoryPage = () => {
               <div className="p-6">
                 <div className="flex justify-between items-start mb-6">
                   <div>
-                    <h2 className="text-2xl font-bold text-white mb-1">Item #{selectedItem.steam_item_id}</h2>
+                    <h2 className="text-2xl font-bold text-white mb-1">{selectedItem.name}</h2>
                     <p className="text-gray-400 text-sm">Steam Inventory Item</p>
                   </div>
                   <button onClick={() => setSelectedItem(null)} className="text-gray-400 hover:text-white transition-colors">
@@ -468,7 +479,12 @@ export const InventoryPage = () => {
 
                 <div className="flex gap-3">
                   {/* Botón cancelar venta si está activo */}
-                  {selectedItem.active_listing && (
+                  { itemActualModalSell && (
+                    <button onClick={() => handleCancelTradeOffer(selectedItem.id)}
+                      className="flex-1 bg-red-600 hover:bg-red-500 text-white font-medium py-3 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-lg shadow-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                    > Cancelar intercambio</button>
+                  )}
+                  {selectedItem.active_listing && (      
                     <button 
                       onClick={() => handleCancelSelling(selectedItem.active_listing.id)}
                       disabled={isSubmitting}
@@ -481,7 +497,7 @@ export const InventoryPage = () => {
 
                   {selectedItem.is_marketable && !selectedItem.is_locked && (
                     <button 
-                      onClick={handleSellClick}
+                      onClick={()=>handleSellClick(selectedItem.id)}
                       className="flex-1 bg-green-600 hover:bg-green-500 text-white font-medium py-3 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-lg shadow-green-900/20"
                     >
                       <DollarSign size={18} />
@@ -493,11 +509,11 @@ export const InventoryPage = () => {
                      onClick={()=>(postTrade(selectedItem.id))}
                      className="flex-1 bg-[#2a475e] hover:bg-[#3d5f7a] text-white font-medium py-3 rounded-lg transition-colors flex items-center justify-center gap-2">
                         <RefreshCw size={18} />
-                        Intercambiar {selectedItem.id}
+                        Intercambiar
                      </button>
                   )}
                    <button 
-                      onClick={() => setSelectedItem(null)}
+                      onClick={() => {setSelectedItem(null), setItemActualModalSell(null)}}
                       className="px-4 py-3 rounded-lg border border-gray-600 text-gray-300 hover:text-white hover:border-gray-500 transition-colors"
                    >
                       Cerrar
@@ -528,7 +544,7 @@ export const InventoryPage = () => {
                          <Package className="text-blue-400" />
                       </div>
                       <div className="overflow-hidden">
-                         <div className="font-medium text-white truncate">Item #{selectedItem.steam_item_id}</div>
+                         <div className="font-medium text-white truncate">{selectedItem.name}</div>
                          <div className="text-xs text-gray-400">Steam Inventory</div>
                       </div>
                    </div>

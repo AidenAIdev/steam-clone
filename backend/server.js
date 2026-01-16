@@ -11,6 +11,9 @@ import { developerAuthRoutes } from './src/features/developer-auth/index.js';
 // Import inventory routes (Esteban - Gestión de Inventario)
 import { inventoryRoutes } from './src/features/inventory/index.js';
 
+// Import game keys routes (Grupo 2 - Gestión de Llaves)
+import { gameKeysRoutes } from './src/features/game-keys/index.js';
+
 // Import security middleware (Grupo 2 - Seguridad)
 import { securityHeaders, additionalSecurityHeaders } from './src/shared/middleware/securityHeaders.js';
 import { apiLimiter } from './src/shared/middleware/rateLimiter.js';
@@ -51,6 +54,9 @@ app.use('/api/auth', apiLimiter, authRoutes);
 
 // Developer auth routes (Steamworks - desarrolladores)
 app.use('/api/desarrolladores/auth', apiLimiter, developerAuthRoutes);
+
+// Game Keys routes (Santiago - Gestión de Llaves de Juego)
+app.use('/api/game-keys', gameKeysRoutes);
 
 // Inventory routes (Esteban - Gestión de Inventario)
 app.use('/api/inventory', inventoryRoutes);

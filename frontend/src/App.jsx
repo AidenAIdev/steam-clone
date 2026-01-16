@@ -13,6 +13,9 @@ import {
   DeveloperAuthProvider
 } from './features/developer-auth';
 
+// Game Keys
+import { GestionLlavesPage } from './features/game-keys';
+
 // Inventory & Profile & Marketplace
 import { ProfilePage, InventoryPage } from './features/inventory';
 import { MarketplacePage } from './features/inventory/pages/MarketplacePage';
@@ -120,6 +123,16 @@ function App() {
           <DeveloperAuthProvider>
             <ProtectedDeveloperRoute>
               <SteamworksDashboardPage />
+            </ProtectedDeveloperRoute>
+          </DeveloperAuthProvider>
+        } 
+      />
+      <Route 
+        path="/steamworks/gestion-llaves" 
+        element={
+          <DeveloperAuthProvider>
+            <ProtectedDeveloperRoute>
+              <GestionLlavesPage />
             </ProtectedDeveloperRoute>
           </DeveloperAuthProvider>
         } 

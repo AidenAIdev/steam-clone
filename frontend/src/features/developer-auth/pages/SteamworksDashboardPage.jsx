@@ -78,6 +78,17 @@ export const SteamworksDashboardPage = () => {
             Acciones Rápidas
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <button 
+              onClick={() => navigate('/steamworks/gestion-llaves')}
+              className="p-4 bg-[#2a3f5f] rounded border border-[#3d5a80] text-left hover:border-[#66c0f4] transition-colors"
+            >
+              <span className="text-[#66c0f4] font-medium block mb-1">
+                Gestión de Llaves
+              </span>
+              <span className="text-gray-400 text-sm">
+                Genera y administra llaves de activación para tus juegos
+              </span>
+            </button>
             <button className="p-4 bg-[#2a3f5f] rounded border border-[#3d5a80] text-left hover:border-[#66c0f4] transition-colors">
               <span className="text-[#66c0f4] font-medium block mb-1">
                 + Nueva Aplicación

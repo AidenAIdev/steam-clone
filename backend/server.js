@@ -14,14 +14,22 @@ import { tradeRoutes } from './src/features/inventory/index.js';
 
 // Import security middleware (Grupo 2 - Seguridad)
 import { securityHeaders, additionalSecurityHeaders } from './src/shared/middleware/securityHeaders.js';
-import { apiLimiter } from './src/shared/middleware/rateLimiter.js';
+import { apiLimiter, criticalRateLimiter } from './src/shared/middleware/rateLimiter.js';
 import { sanitizeBodyMiddleware } from './src/shared/utils/sanitization.js';
 
 // Import session service for cleanup (Grupo 2 - Gestión de Sesiones)
 import { sessionService } from './src/shared/services/sessionService.js';
 
+// Import limited account validation middleware
+import {limitedAccountValidationMiddleware} from './src/shared/middleware/limitedAccountValidationMiddleware.js';
+import {geoValidationMiddleware} from './src/shared/middleware/geoValidationMiddleware.js';
+
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+if (!process.env.IPINFO_BASE_URL || !process.env.IPINFO_TOKEN) {
+  throw new Error('Falla en la configuración de GeoIP: variables de entorno faltantes');
+}
 
 // Security Middleware (DEBE IR PRIMERO)
 // RNF-002: HTTPS/TLS headers
@@ -220,6 +228,17 @@ app.get('/api/search', (req, res) => {
     games: results
   });
 });
+
+// Middleware de validación geográfica
+app.use(geoValidationMiddleware);
+
+// Middleware de validación de cuentas limitadas
+app.use(limitedAccountValidationMiddleware);
+
+// Aplicar Rate Limiting a endpoints críticos
+app.use('/api/trade', criticalRateLimiter, tradeRoutes);
+app.use('/api/inventory', criticalRateLimiter, inventoryRoutes);
+app.use('/api/search', criticalRateLimiter);
 
 // Manejo de errores 404
 app.use((req, res) => {

@@ -10,7 +10,7 @@ import { useTrade } from '../hooks/useTrade';
 export const MarketplacePage = () => {
   const { user } = useAuth();
   const { inventory } = useInventory(user?.id);
-  const { tradesForMe, postTradeOffer, getOffersForTrade, acceptTrade, cancelTradeById, cancelTradeOffer } = useTrade(user?.id);
+  const { tradesForMe, postTradeOffer, getOffersForTrade, acceptTrade, cancelTradeById, rejectTradeOffer } = useTrade(user?.id);
   const [activeTab, setActiveTab] = useState('market'); // 'market' | 'trading'
   const [marketItems, setMarketItems] = useState([]);
   const [trades, setTrades] = useState([]);
@@ -57,9 +57,9 @@ export const MarketplacePage = () => {
     acceptTrade(tradeId);
   };
 
-  const handleRejectOffer = (tradeId, itemId) => {
-    console.log('Rechazar oferta:', tradeId, itemId);
-    // Lógica para rechazar la oferta
+  const handleRejectOffer = (tradeId) => {
+    console.log('Rechazar oferta:', tradeId);
+    rejectTradeOffer(tradeId)
   };
 
   const handleCancelListing = async (listingId) => {
@@ -665,7 +665,7 @@ export const MarketplacePage = () => {
                           
                           <div className="flex gap-3">
                             <button
-                              onClick={() => handleRejectOffer(trade.out_trade_id, trade.out_item_id)}
+                              onClick={() => handleRejectOffer(trade.out_id)}
                               className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 hover:text-red-300 rounded-lg font-medium transition-colors flex items-center gap-2"
                             >
                               <X size={16} />

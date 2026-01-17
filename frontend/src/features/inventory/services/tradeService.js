@@ -82,6 +82,16 @@ export const tradeService = {
 	},
 
 	async cancelTradeOffer(offerId) {
+		const response = await fetch(`${API_URL}/trade/offer/cancel/${offerId}`, {
+			method: 'POST',
+			credentials: 'include',
+		});
+		const data = await response.json();
+		if (!data.success) throw new Error(data.message);
+		return data.data;
+	},
+
+	async rejectTradeOffer(offerId) {
 		const response = await fetch(`${API_URL}/trade/offer/reject/${offerId}`, {
 			method: 'POST',
 			credentials: 'include',

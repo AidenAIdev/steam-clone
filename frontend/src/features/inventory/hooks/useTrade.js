@@ -94,6 +94,20 @@ export const useTrade = (userId) => {
 		}
 	};
 
+	const rejectTradeOffer = async (offerId) => {
+		try {
+			setLoading(true);
+			const response = await tradeService.rejectTradeOffer(offerId);
+			setError(null);
+			return response;
+		} catch (err) {
+			setError(err.message);
+			throw err;
+		} finally {
+			setLoading(false);
+		}
+	};
+
 	const cancelTradeOffer = async (offerId) => {
 		try {
 			setLoading(true);
@@ -137,5 +151,6 @@ export const useTrade = (userId) => {
 		getOffersForTrade,
 		getTradeOffersByItemId,
 		cancelTradeOffer,
+		rejectTradeOffer,
 	};
 };

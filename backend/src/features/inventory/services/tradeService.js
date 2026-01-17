@@ -221,6 +221,24 @@ export const tradeOfferService = {
 		}
 	},
 
+	async rejectTradeOfferServ(offerId) {
+		try {
+			const { data, error } = await supabase.rpc('reject_trade_offer', {
+				offer_id_param: offerId,
+			});
+
+			if (error) throw error;
+
+			// data[0] contiene la oferta actualizada
+			console.log('Oferta rechazada e ítem liberado:', data[0]);
+
+			return 'Oferta rechazada';
+		} catch (error) {
+			console.error('Error rejecting trade offer:', error.message);
+			throw error;
+		}
+	},
+
 	async cancelTradeOfferServ(id) {
 		try {
 			await new Promise((resolve) => setTimeout(resolve, 5000));

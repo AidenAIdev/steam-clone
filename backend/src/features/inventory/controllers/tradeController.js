@@ -7,7 +7,7 @@ export const tradeController = {
 	async getActiveTrades(req, res) {
 		try {
 			const { userId } = req.params;
-			const viewerId = req.user?.id; // Asumiendo que el middleware de auth pone el user en req
+			const viewerId = req.user?.id;
 
 			const trades = await tradeService.getAllActiveTrades();
 
@@ -29,7 +29,7 @@ export const tradeController = {
 	async postTrade(req, res) {
 		try {
 			const { offererId, itemId } = req.body;
-			const requesterId = req.user?.id; // Asumiendo que el middleware de auth pone el user en req
+			const requesterId = req.user?.id;
 
 			// if (offererId !== requesterId) {
 			// 	console.log(offererId, requesterId);
@@ -73,7 +73,7 @@ export const tradeController = {
 	async cancelTrade(req, res) {
 		try {
 			const { tradeId } = req.params;
-			const requesterId = req.user?.id; // Asumiendo que el middleware de auth pone el user en req
+			const requesterId = req.user?.id;
 			const result = await tradeService.cancelTradeById(tradeId);
 			res.json({
 				success: true,
@@ -90,7 +90,7 @@ export const tradeController = {
 	async postTradeOffer(req, res) {
 		try {
 			const { offererId, tradeId, itemId } = req.body;
-			const requesterId = req.user?.id; // Asumiendo que el middleware de auth pone el user en req
+			const requesterId = req.user?.id;
 			const tradeOffer = await tradeOfferService.postTradeOffer(
 				requesterId,
 				tradeId,
@@ -130,7 +130,7 @@ export const tradeController = {
 	async getTradeOffersByItemId(req, res) {
 		try {
 			const { itemId } = req.params;
-			const requesterId = req.user?.id; // Asumiendo que el middleware de auth pone el user en req
+			const requesterId = req.user?.id;
 			const offers = await tradeOfferService.getTradeOfferByItemId(itemId);
 			res.json({
 				success: true,
@@ -144,10 +144,28 @@ export const tradeController = {
 		}
 	},
 
+	async rejectTradeOffer(req, res) {
+		try {
+			const { offerId } = req.params;
+			const requesterId = req.user?.id;
+			const result = await tradeOfferService.rejectTradeOfferServ(offerId);
+
+			res.json({
+				success: true,
+				data: result,
+			});
+		} catch (error) {
+			res.status(error.message.includes('permiso') ? 403 : 500).json({
+				success: false,
+				message: error.message,
+			});
+		}
+	},
+
 	async cancelTradeOffer(req, res) {
 		try {
 			const { offerId } = req.params;
-			const requesterId = req.user?.id; // Asumiendo que el middleware de auth pone el user en req
+			const requesterId = req.user?.id;
 			const result = await tradeOfferService.cancelTradeOfferServ(offerId);
 
 			res.json({

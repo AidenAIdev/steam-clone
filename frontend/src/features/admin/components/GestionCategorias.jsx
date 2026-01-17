@@ -3,8 +3,10 @@ import {
   getCategorias,
   crearCategoria,
   updateCategoria,
-  deleteCategoria
+  deleteCategoria,
+  verifyMFACode
 } from '../services/adminAuthService';
+import MFAModal from './MFAModal';
 
 const GestionCategorias = () => {
   const [categorias, setCategorias] = useState([]);
@@ -16,6 +18,11 @@ const GestionCategorias = () => {
     descripcion: ''
   });
   const [editingId, setEditingId] = useState(null);
+  
+  // Estados para MFA Modal
+  const [showMFAModal, setShowMFAModal] = useState(false);
+  const [pendingAction, setPendingAction] = useState(null);
+  const [mfaOperationType, setMfaOperationType] = useState('');
 
   useEffect(() => {
     loadCategorias();
@@ -35,16 +42,30 @@ const GestionCategorias = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Mostrar modal MFA antes de ejecutar la acción
+    const operationType = editingId ? 'actualización de categoría' : 'creación de categoría';
+    setMfaOperationType(operationType);
+    setPendingAction({
+      type: 'submit',
+      data: { ...formData },
+      editingId
+    });
+    setShowMFAModal(true);
+  };
+
+  const executeSubmit = async () => {
     try {
-      if (editingId) {
-        await updateCategoria(editingId, formData);
+      if (pendingAction.editingId) {
+        await updateCategoria(pendingAction.editingId, pendingAction.data);
       } else {
-        await crearCategoria(formData);
+        await crearCategoria(pendingAction.data);
       }
       setShowForm(false);
       setFormData({ nombre_categoria: '', descripcion: '' });
       setEditingId(null);
       await loadCategorias();
+      alert('Operación realizada exitosamente');
     } catch (err) {
       alert(err.message || 'Error al guardar categoría');
     }
@@ -60,23 +81,63 @@ const GestionCategorias = () => {
   };
 
   const handleToggleActive = async (categoria) => {
+    // Mostrar modal MFA antes de cambiar estado
+    const operationType = categoria.activa ? 'desactivación de categoría' : 'activación de categoría';
+    setMfaOperationType(operationType);
+    setPendingAction({
+      type: 'toggleActive',
+      categoriaId: categoria.id,
+      activa: !categoria.activa
+    });
+    setShowMFAModal(true);
+  };
+
+  const executeToggleActive = async () => {
     try {
-      await updateCategoria(categoria.id, { activa: !categoria.activa });
+      await updateCategoria(pendingAction.categoriaId, { activa: pendingAction.activa });
       await loadCategorias();
+      alert('Estado actualizado exitosamente');
     } catch (err) {
       alert(err.message || 'Error al actualizar categoría');
     }
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm('¿Eliminar esta categoría? Los juegos asociados no se eliminarán.')) {
-      try {
-        await deleteCategoria(id);
-        await loadCategorias();
-      } catch (err) {
-        alert(err.message || 'Error al eliminar categoría');
-      }
+    // Mostrar modal MFA antes de eliminar
+    setMfaOperationType('eliminación de categoría');
+    setPendingAction({
+      type: 'delete',
+      id
+    });
+    setShowMFAModal(true);
+  };
+
+  const executeDelete = async () => {
+    try {
+      await deleteCategoria(pendingAction.id);
+      await loadCategorias();
+      alert('Categoría eliminada exitosamente');
+    } catch (err) {
+      alert(err.message || 'Error al eliminar categoría');
     }
+  };
+
+  const handleMFAVerify = async (code) => {
+    // Verificar el código MFA
+    await verifyMFACode(code);
+    
+    // Si la verificación es exitosa, ejecutar la acción pendiente
+    if (pendingAction.type === 'submit') {
+      await executeSubmit();
+    } else if (pendingAction.type === 'toggleActive') {
+      await executeToggleActive();
+    } else if (pendingAction.type === 'delete') {
+      await executeDelete();
+    }
+    
+    // Limpiar estado
+    setPendingAction(null);
+    setMfaOperationType('');
   };
 
   if (loading) {
@@ -266,6 +327,18 @@ const GestionCategorias = () => {
           Total de categorías: {categorias.length} ({categorias.filter(c => c.activa).length} activas)
         </div>
       )}
+      
+      {/* Modal de verificación MFA */}
+      <MFAModal
+        isOpen={showMFAModal}
+        onClose={() => {
+          setShowMFAModal(false);
+          setPendingAction(null);
+          setMfaOperationType('');
+        }}
+        onVerify={handleMFAVerify}
+        operationType={mfaOperationType}
+      />
     </div>
   );
 };

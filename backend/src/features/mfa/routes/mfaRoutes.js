@@ -40,4 +40,7 @@ router.post('/verify-enable-initial', mfaMiddleware.extractUserType, mfaControll
 // Verificar código durante login (no requiere autenticación previa)
 router.post('/verify-login', mfaMiddleware.extractUserType, mfaController.verifyLogin);
 
+// Verificar código MFA para operaciones administrativas sensibles (requiere autenticación)
+router.post('/verify', requireAuth, mfaMiddleware.extractUserType, mfaController.verifyOperationCode);
+
 export default router;

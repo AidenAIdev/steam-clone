@@ -535,6 +535,319 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_backup_codes TEXT;
 
 4. **Endpoints de verificación**: El endpoint `/admin/verify-mfa-login` es específico de admin. Para otros módulos, debes crear endpoints similares o usar la ruta genérica `/mfa/verify-login`.
 
+## Aplicar MFA en Operaciones Críticas
+
+Además del login, puedes proteger operaciones administrativas sensibles requiriendo verificación MFA. Este patrón se usa para acciones como:
+- Bloqueo/desbloqueo de países
+- Aprobación/rechazo de juegos
+- Aplicar bans a usuarios
+- Gestión de categorías (crear, actualizar, eliminar)
+
+### 1. Backend: Endpoint de Verificación
+
+El sistema incluye un endpoint para verificar códigos MFA durante operaciones:
+
+```javascript
+// backend/src/features/mfa/routes/mfaRoutes.js
+router.post('/verify', requireAuth, mfaMiddleware.extractUserType, mfaController.verifyOperationCode);
+```
+
+Este endpoint:
+- ✅ Requiere autenticación previa (token JWT)
+- ✅ Valida que el userId coincida con el usuario autenticado
+- ✅ Verifica el código TOTP
+- ✅ No crea sesión, solo valida el código
+
+**Parámetros del request:**
+```json
+{
+  "userId": "uuid-del-usuario",
+  "token": "123456",
+  "userType": "admin"
+}
+```
+
+### 2. Frontend: Servicio de Verificación
+
+Agregar función de verificación en el servicio correspondiente:
+
+```javascript
+// frontend/src/features/admin/services/adminAuthService.js
+export const verifyMFACode = async (code) => {
+  const adminData = localStorage.getItem('adminUser');
+  const admin = adminData ? JSON.parse(adminData) : null;
+  
+  if (!admin || !admin.id) {
+    throw new Error('No se encontró información del administrador');
+  }
+
+  const response = await fetch('http://localhost:3000/api/mfa/verify', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+    },
+    body: JSON.stringify({ 
+      userId: admin.id, 
+      token: code,
+      userType: 'admin'
+    })
+  });
+
+  const data = await response.json();
+  
+  if (!response.ok) {
+    throw new Error(data.message || 'Código inválido');
+  }
+  
+  return data;
+};
+```
+
+### 3. Frontend: Componente Modal MFA
+
+Crear un modal reutilizable para solicitar el código MFA:
+
+```jsx
+// frontend/src/features/admin/components/MFAModal.jsx
+import { useState } from 'react';
+
+const MFAModal = ({ isOpen, onClose, onVerify, operationType = 'operación' }) => {
+  const [code, setCode] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      await onVerify(code);
+      setCode('');
+      onClose();
+    } catch (err) {
+      setError(err.message || 'Código inválido');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCodeChange = (e) => {
+    const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+    setCode(value);
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div style={{ /* estilos del overlay */ }}>
+      <div style={{ /* estilos del modal */ }}>
+        <h2>Verificación de Seguridad</h2>
+        <p>Esta {operationType} requiere verificación MFA.</p>
+        
+        {error && <div style={{ color: 'red' }}>{error}</div>}
+        
+        <form onSubmit={handleSubmit}>
+          <input
+            type="text"
+            value={code}
+            onChange={handleCodeChange}
+            placeholder="000000"
+            maxLength="6"
+            required
+            autoFocus
+          />
+          <button type="button" onClick={onClose}>Cancelar</button>
+          <button type="submit" disabled={loading || code.length !== 6}>
+            {loading ? 'Verificando...' : 'Verificar'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+export default MFAModal;
+```
+
+### 4. Implementación en Componentes
+
+Patrón para implementar MFA en operaciones críticas:
+
+```jsx
+import { useState } from 'react';
+import { verifyMFACode } from '../services/adminAuthService';
+import MFAModal from './MFAModal';
+
+const MiComponente = () => {
+  // Estados para MFA
+  const [showMFAModal, setShowMFAModal] = useState(false);
+  const [pendingAction, setPendingAction] = useState(null);
+  const [mfaOperationType, setMfaOperationType] = useState('');
+
+  // Interceptar la operación crítica
+  const handleCriticalAction = async (data) => {
+    // En lugar de ejecutar directamente, mostrar modal MFA
+    setMfaOperationType('bloqueo de país'); // Descripción de la operación
+    setPendingAction({
+      type: 'bloquear',
+      data: data
+    });
+    setShowMFAModal(true);
+  };
+
+  // Ejecutar la operación después de verificar MFA
+  const executeAction = async () => {
+    try {
+      if (pendingAction.type === 'bloquear') {
+        await createBloqueoPais(pendingAction.data);
+      }
+      // ... otras acciones
+      
+      alert('Operación exitosa');
+    } catch (err) {
+      alert(err.message || 'Error al ejecutar operación');
+    }
+  };
+
+  // Manejar verificación MFA
+  const handleMFAVerify = async (code) => {
+    // Verificar el código MFA
+    await verifyMFACode(code);
+    
+    // Si es válido, ejecutar la acción pendiente
+    await executeAction();
+    
+    // Limpiar estado
+    setPendingAction(null);
+    setMfaOperationType('');
+  };
+
+  return (
+    <div>
+      {/* Tu componente normal */}
+      <button onClick={() => handleCriticalAction(someData)}>
+        Acción Crítica
+      </button>
+
+      {/* Modal MFA */}
+      <MFAModal
+        isOpen={showMFAModal}
+        onClose={() => {
+          setShowMFAModal(false);
+          setPendingAction(null);
+          setMfaOperationType('');
+        }}
+        onVerify={handleMFAVerify}
+        operationType={mfaOperationType}
+      />
+    </div>
+  );
+};
+```
+
+### 5. Ejemplo Completo: Bloqueo de País
+
+```jsx
+const BloqueoPais = () => {
+  const [showMFAModal, setShowMFAModal] = useState(false);
+  const [pendingAction, setPendingAction] = useState(null);
+  const [mfaOperationType, setMfaOperationType] = useState('');
+
+  // Formulario de bloqueo
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    // Mostrar modal MFA antes de bloquear
+    setMfaOperationType('creación de bloqueo');
+    setPendingAction({
+      type: 'submit',
+      data: { ...formData }
+    });
+    setShowMFAModal(true);
+  };
+
+  // Desbloquear país
+  const handleDelete = async (id) => {
+    setMfaOperationType('desbloqueo de país');
+    setPendingAction({
+      type: 'delete',
+      id
+    });
+    setShowMFAModal(true);
+  };
+
+  // Ejecutar acción después de MFA
+  const executeSubmit = async () => {
+    await createBloqueoPais(pendingAction.data);
+    await loadData();
+    alert('País bloqueado exitosamente');
+  };
+
+  const executeDelete = async () => {
+    await deleteBloqueoPais(pendingAction.id);
+    await loadData();
+    alert('País desbloqueado exitosamente');
+  };
+
+  // Verificar MFA y ejecutar
+  const handleMFAVerify = async (code) => {
+    await verifyMFACode(code);
+    
+    if (pendingAction.type === 'submit') {
+      await executeSubmit();
+    } else if (pendingAction.type === 'delete') {
+      await executeDelete();
+    }
+    
+    setPendingAction(null);
+    setMfaOperationType('');
+  };
+
+  return (
+    <>
+      {/* Formulario y tabla */}
+      
+      <MFAModal
+        isOpen={showMFAModal}
+        onClose={() => {
+          setShowMFAModal(false);
+          setPendingAction(null);
+        }}
+        onVerify={handleMFAVerify}
+        operationType={mfaOperationType}
+      />
+    </>
+  );
+};
+```
+
+### Operaciones Protegidas con MFA
+
+Actualmente implementado en:
+
+1. **Bloqueo de País**: Crear, actualizar, desbloquear
+2. **Revisión de Juegos**: Aprobar, rechazar
+3. **Gestión de Usuarios**: Aplicar ban, aprobar/rechazar reportes
+4. **Gestión de Categorías**: Crear, actualizar, activar/desactivar, eliminar
+
+### Ventajas de este Patrón
+
+✅ **No intrusivo**: No modifica el flujo de autenticación principal
+✅ **Flexible**: Se puede aplicar a cualquier operación
+✅ **Reutilizable**: Un solo modal para todas las operaciones
+✅ **Seguro**: Cada código solo es válido por 30 segundos
+✅ **UX clara**: El usuario sabe exactamente qué operación está autorizando
+
+### Consideraciones de Seguridad
+
+1. **Un código por operación**: Cada acción requiere un código nuevo
+2. **No se almacena el estado**: No hay bypass posible
+3. **Token de sesión requerido**: La verificación requiere estar autenticado
+4. **Validación de usuario**: El backend verifica que el userId coincida con el token
+5. **Rate limiting**: El endpoint está protegido contra fuerza bruta
+
 ## Próximos Pasos
 
 Para implementar MFA en developers o users:
@@ -544,3 +857,4 @@ Para implementar MFA en developers o users:
 3. Actualizar el flujo de login para detectar y requerir MFA
 4. Usar los componentes MFA con el `userType` apropiado
 5. Implementar la lógica de `completeMFALogin` para ese tipo de usuario
+6. Aplicar el patrón de verificación MFA a operaciones críticas

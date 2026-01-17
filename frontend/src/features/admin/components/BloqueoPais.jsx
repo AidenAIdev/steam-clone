@@ -3,9 +3,11 @@ import {
   getBloqueoPaises,
   createBloqueoPais,
   updateBloqueoPais,
-  deleteBloqueoPais
+  deleteBloqueoPais,
+  verifyMFACode
 } from '../services/adminAuthService';
 import { getCountries } from '@yusifaliyevpro/countries';
+import MFAModal from './MFAModal';
 
 const BloqueoPais = () => {
   const [bloqueos, setBloqueos] = useState([]);
@@ -19,6 +21,11 @@ const BloqueoPais = () => {
     motivo_politico: ''
   });
   const [editingId, setEditingId] = useState(null);
+  
+  // Estados para MFA Modal
+  const [showMFAModal, setShowMFAModal] = useState(false);
+  const [pendingAction, setPendingAction] = useState(null);
+  const [mfaOperationType, setMfaOperationType] = useState('');
 
   useEffect(() => {
     loadData();
@@ -59,31 +66,69 @@ const BloqueoPais = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Mostrar modal MFA antes de ejecutar la acción
+    const operationType = editingId ? 'actualización de bloqueo' : 'creación de bloqueo';
+    setMfaOperationType(operationType);
+    setPendingAction({
+      type: 'submit',
+      data: { ...formData },
+      editingId
+    });
+    setShowMFAModal(true);
+  };
+
+  const executeSubmit = async () => {
     try {
-      if (editingId) {
-        await updateBloqueoPais(editingId, formData);
+      if (pendingAction.editingId) {
+        await updateBloqueoPais(pendingAction.editingId, pendingAction.data);
       } else {
-        await createBloqueoPais(formData);
+        await createBloqueoPais(pendingAction.data);
       }
       setShowForm(false);
       setFormData({ codigo_pais: '', estado: 'bloqueado', motivo_politico: '' });
       setEditingId(null);
       await loadData();
+      alert('Operación realizada exitosamente');
     } catch (err) {
       alert(err.message || 'Error al guardar');
     }
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm('¿Desbloquear este país?')) {
-      try {
-        await deleteBloqueoPais(id);
-        await loadData();
-        alert('País desbloqueado exitosamente');
-      } catch (err) {
-        alert(err.message || 'Error al desbloquear');
-      }
+    // Mostrar modal MFA antes de desbloquear
+    setMfaOperationType('desbloqueo de país');
+    setPendingAction({
+      type: 'delete',
+      id
+    });
+    setShowMFAModal(true);
+  };
+
+  const executeDelete = async () => {
+    try {
+      await deleteBloqueoPais(pendingAction.id);
+      await loadData();
+      alert('País desbloqueado exitosamente');
+    } catch (err) {
+      alert(err.message || 'Error al desbloquear');
     }
+  };
+
+  const handleMFAVerify = async (code) => {
+    // Verificar el código MFA
+    await verifyMFACode(code);
+    
+    // Si la verificación es exitosa, ejecutar la acción pendiente
+    if (pendingAction.type === 'submit') {
+      await executeSubmit();
+    } else if (pendingAction.type === 'delete') {
+      await executeDelete();
+    }
+    
+    // Limpiar estado
+    setPendingAction(null);
+    setMfaOperationType('');
   };
 
   const getPaisName = (codigo) => {
@@ -282,6 +327,18 @@ const BloqueoPais = () => {
           </tbody>
         </table>
       </div>
+      
+      {/* Modal de verificación MFA */}
+      <MFAModal
+        isOpen={showMFAModal}
+        onClose={() => {
+          setShowMFAModal(false);
+          setPendingAction(null);
+          setMfaOperationType('');
+        }}
+        onVerify={handleMFAVerify}
+        operationType={mfaOperationType}
+      />
     </div>
   );
 };

@@ -8,7 +8,7 @@ const mfaController = {
     try {
       const userId = req.user.id;
       const email = req.user.email;
-      const userType = req.user.userType || 'admin'; // Default a admin si no está especificado
+      const userType = req.user.userType || 'admin';
 
       const result = await mfaService.generateMFASecret(userId, email, userType);
 
@@ -115,7 +115,6 @@ const mfaController = {
       }
 
       // Aquí podrías agregar verificación de contraseña adicional
-      
       await mfaService.disableMFA(userId, userType);
 
       res.status(200).json({
@@ -276,6 +275,51 @@ const mfaController = {
       res.status(400).json({
         success: false,
         message: error.message || 'Error al activar MFA'
+      });
+    }
+  },
+
+  /**
+   * Verifica código TOTP para operaciones administrativas sensibles
+   * Requiere autenticación previa - solo valida el código MFA
+   */
+  verifyOperationCode: async (req, res) => {
+    try {
+      const { userId, token, userType = 'admin' } = req.body;
+
+      // Validar que el userId del request coincida con el usuario autenticado
+      if (req.user && req.user.id !== userId) {
+        return res.status(403).json({
+          success: false,
+          message: 'No autorizado para verificar este código'
+        });
+      }
+
+      if (!userId || !token) {
+        return res.status(400).json({
+          success: false,
+          message: 'User ID y código de verificación requeridos'
+        });
+      }
+
+      const verified = await mfaService.verifyTOTP(userId, token, userType);
+
+      if (!verified) {
+        return res.status(401).json({
+          success: false,
+          message: 'Código de verificación inválido'
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+        message: 'Código verificado correctamente'
+      });
+    } catch (error) {
+      console.error('Error al verificar código de operación:', error);
+      res.status(401).json({
+        success: false,
+        message: error.message || 'Error al verificar código'
       });
     }
   }

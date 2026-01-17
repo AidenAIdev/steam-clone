@@ -54,8 +54,6 @@ const adminController = {
       const userId = req.body.userId || req.body.adminId;
       const { token, userType = 'admin' } = req.body;
 
-      console.log('Verifying MFA login for userId:', userId, 'userType:', userType);
-      
       if (!userId || !token) {
         return res.status(400).json({
           success: false,

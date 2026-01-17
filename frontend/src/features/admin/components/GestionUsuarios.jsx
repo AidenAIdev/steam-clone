@@ -5,8 +5,10 @@ import {
   desactivarSancion,
   getReportesBan,
   aprobarReporteBan,
-  rechazarReporteBan
+  rechazarReporteBan,
+  verifyMFACode
 } from '../services/adminAuthService';
+import MFAModal from './MFAModal';
 
 const GestionUsuarios = () => {
   const [sanciones, setSanciones] = useState([]);
@@ -22,6 +24,11 @@ const GestionUsuarios = () => {
     motivo: '',
     fecha_fin: ''
   });
+  
+  // Estados para MFA Modal
+  const [showMFAModal, setShowMFAModal] = useState(false);
+  const [pendingAction, setPendingAction] = useState(null);
+  const [mfaOperationType, setMfaOperationType] = useState('');
 
   useEffect(() => {
     loadSanciones();
@@ -54,8 +61,19 @@ const GestionUsuarios = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Mostrar modal MFA antes de ejecutar la acción
+    setMfaOperationType('aplicación de ban');
+    setPendingAction({
+      type: 'crearBan',
+      data: { ...formData }
+    });
+    setShowMFAModal(true);
+  };
+
+  const executeCrearBan = async () => {
     try {
-      await crearSancion(formData);
+      await crearSancion(pendingAction.data);
       setShowForm(false);
       setFormData({
         username: '',
@@ -63,6 +81,7 @@ const GestionUsuarios = () => {
         fecha_fin: ''
       });
       await loadSanciones();
+      alert('Ban aplicado exitosamente');
     } catch (err) {
       alert(err.message || 'Error al crear sanción');
     }
@@ -85,10 +104,27 @@ const GestionUsuarios = () => {
     
     const comentarios = prompt('Comentarios (opcional):', '');
     
+    // Mostrar modal MFA antes de aprobar
+    setMfaOperationType('aprobación de reporte de ban');
+    setPendingAction({
+      type: 'aprobarReporte',
+      id,
+      comentarios,
+      duracion: parseInt(duracion) || 1
+    });
+    setShowMFAModal(true);
+  };
+
+  const executeAprobarReporte = async () => {
     try {
-      await aprobarReporteBan(id, comentarios, parseInt(duracion) || 1);
+      await aprobarReporteBan(
+        pendingAction.id, 
+        pendingAction.comentarios, 
+        pendingAction.duracion
+      );
       await loadReportes();
       await loadSanciones();
+      alert('Reporte aprobado exitosamente');
     } catch (err) {
       alert(err.message || 'Error al aprobar reporte');
     }
@@ -98,12 +134,42 @@ const GestionUsuarios = () => {
     const comentarios = prompt('Motivo del rechazo:', '');
     if (comentarios === null) return;
     
+    // Mostrar modal MFA antes de rechazar
+    setMfaOperationType('rechazo de reporte de ban');
+    setPendingAction({
+      type: 'rechazarReporte',
+      id,
+      comentarios
+    });
+    setShowMFAModal(true);
+  };
+
+  const executeRechazarReporte = async () => {
     try {
-      await rechazarReporteBan(id, comentarios);
+      await rechazarReporteBan(pendingAction.id, pendingAction.comentarios);
       await loadReportes();
+      alert('Reporte rechazado exitosamente');
     } catch (err) {
       alert(err.message || 'Error al rechazar reporte');
     }
+  };
+
+  const handleMFAVerify = async (code) => {
+    // Verificar el código MFA
+    await verifyMFACode(code);
+    
+    // Si la verificación es exitosa, ejecutar la acción pendiente
+    if (pendingAction.type === 'crearBan') {
+      await executeCrearBan();
+    } else if (pendingAction.type === 'aprobarReporte') {
+      await executeAprobarReporte();
+    } else if (pendingAction.type === 'rechazarReporte') {
+      await executeRechazarReporte();
+    }
+    
+    // Limpiar estado
+    setPendingAction(null);
+    setMfaOperationType('');
   };
 
   const formatDate = (dateString) => {
@@ -457,6 +523,18 @@ const GestionUsuarios = () => {
           </div>
         )}
       </div>
+      
+      {/* Modal de verificación MFA */}
+      <MFAModal
+        isOpen={showMFAModal}
+        onClose={() => {
+          setShowMFAModal(false);
+          setPendingAction(null);
+          setMfaOperationType('');
+        }}
+        onVerify={handleMFAVerify}
+        operationType={mfaOperationType}
+      />
     </div>
   );
 };

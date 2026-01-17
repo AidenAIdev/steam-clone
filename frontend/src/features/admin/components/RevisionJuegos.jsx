@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import {
   getRevisionesJuegos,
   aprobarJuego,
-  rechazarJuego
+  rechazarJuego,
+  verifyMFACode
 } from '../services/adminAuthService';
+import MFAModal from './MFAModal';
 
 const RevisionJuegos = () => {
   const [revisiones, setRevisiones] = useState([]);
@@ -13,6 +15,11 @@ const RevisionJuegos = () => {
   const [selectedRevision, setSelectedRevision] = useState(null);
   const [comentarios, setComentarios] = useState('');
   const [accionActual, setAccionActual] = useState(null);
+  
+  // Estados para MFA Modal
+  const [showMFAModal, setShowMFAModal] = useState(false);
+  const [pendingAction, setPendingAction] = useState(null);
+  const [mfaOperationType, setMfaOperationType] = useState('');
 
   useEffect(() => {
     loadRevisiones();
@@ -45,24 +52,53 @@ const RevisionJuegos = () => {
   const confirmarAccion = async () => {
     if (!selectedRevision) return;
 
+    // Validar comentarios si es rechazo
+    if (accionActual === 'rechazar' && !comentarios.trim()) {
+      alert('Los comentarios son obligatorios al rechazar un juego');
+      return;
+    }
+
+    // Guardar la acción pendiente y mostrar modal MFA
+    const operationType = accionActual === 'aprobar' ? 'aprobación de juego' : 'rechazo de juego';
+    setMfaOperationType(operationType);
+    setPendingAction({
+      type: accionActual,
+      revisionId: selectedRevision.id,
+      comentarios
+    });
+    
+    // Cerrar el modal de confirmación y abrir el modal MFA
+    setSelectedRevision(null);
+    setShowMFAModal(true);
+  };
+
+  const executeAction = async () => {
     try {
-      if (accionActual === 'aprobar') {
-        await aprobarJuego(selectedRevision.id, comentarios);
-      } else if (accionActual === 'rechazar') {
-        if (!comentarios.trim()) {
-          alert('Los comentarios son obligatorios al rechazar un juego');
-          return;
-        }
-        await rechazarJuego(selectedRevision.id, comentarios);
+      if (pendingAction.type === 'aprobar') {
+        await aprobarJuego(pendingAction.revisionId, pendingAction.comentarios);
+      } else if (pendingAction.type === 'rechazar') {
+        await rechazarJuego(pendingAction.revisionId, pendingAction.comentarios);
       }
       
-      setSelectedRevision(null);
       setComentarios('');
       setAccionActual(null);
       await loadRevisiones();
+      alert('Operación realizada exitosamente');
     } catch (err) {
       alert(err.message || 'Error al procesar la acción');
     }
+  };
+
+  const handleMFAVerify = async (code) => {
+    // Verificar el código MFA
+    await verifyMFACode(code);
+    
+    // Si la verificación es exitosa, ejecutar la acción pendiente
+    await executeAction();
+    
+    // Limpiar estado
+    setPendingAction(null);
+    setMfaOperationType('');
   };
 
   const cancelarAccion = () => {
@@ -287,6 +323,23 @@ const RevisionJuegos = () => {
           </tbody>
         </table>
       </div>
+      
+      {/* Modal de verificación MFA */}
+      <MFAModal
+        isOpen={showMFAModal}
+        onClose={() => {
+          setShowMFAModal(false);
+          setPendingAction(null);
+          setMfaOperationType('');
+          // Restaurar el modal de confirmación si hay una revisión seleccionada
+          if (pendingAction) {
+            setComentarios(pendingAction.comentarios);
+            setAccionActual(pendingAction.type);
+          }
+        }}
+        onVerify={handleMFAVerify}
+        operationType={mfaOperationType}
+      />
     </div>
   );
 };

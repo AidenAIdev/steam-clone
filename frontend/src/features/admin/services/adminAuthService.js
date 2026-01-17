@@ -394,4 +394,35 @@ export const rechazarReporteBan = async (id, comentarios) => {
   return data.data;
 };
 
+// Verificar código MFA para operaciones administrativas
+export const verifyMFACode = async (code) => {
+  const adminData = localStorage.getItem('adminUser');
+  const admin = adminData ? JSON.parse(adminData) : null;
+  
+  if (!admin || !admin.id) {
+    throw new Error('No se encontró información del administrador');
+  }
+
+  const response = await fetch('http://localhost:3000/api/mfa/verify', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getHeaders()
+    },
+    body: JSON.stringify({ 
+      userId: admin.id, 
+      token: code,
+      userType: 'admin'
+    })
+  });
+
+  const data = await response.json();
+  
+  if (!response.ok) {
+    throw new Error(data.message || 'Código inválido');
+  }
+  
+  return data;
+};
+
 export default adminAuthService;

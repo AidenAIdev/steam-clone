@@ -15,6 +15,13 @@ export const MARKETPLACE_LIMITS = {
   DAILY_PURCHASE_LIMIT: 2000, // Límite diario de compra en USD
 };
 
+// Constantes de límites de trading
+export const TRADE_LIMITS = {
+  MAX_ACTIVE_TRADES: 10,         // Máximo de trades activos por usuario
+  MAX_OFFERS_PER_TRADE: 20,      // Máximo de ofertas por publicación de trade
+  TRADE_EXPIRY_DAYS: 7,          // Días hasta que expira un trade
+};
+
 /**
  * Valida un precio y retorna el resultado
  * @param {string|number} price - El precio a validar

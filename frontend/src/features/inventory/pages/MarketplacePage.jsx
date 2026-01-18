@@ -7,13 +7,13 @@ import { useInventory } from '../hooks/useInventory';
 import { tradeService } from '../services/tradeService';
 import { useTrade } from '../hooks/useTrade';
 import { useWallet } from '../../wallet/hooks/useWallet';
-import { validatePrice, sanitizePriceInput, formatPriceOnBlur, getPriceValidationState, PRICE_CONFIG, MARKETPLACE_LIMITS } from '../utils/priceValidation';
+import { validatePrice, sanitizePriceInput, formatPriceOnBlur, getPriceValidationState, PRICE_CONFIG, MARKETPLACE_LIMITS, TRADE_LIMITS } from '../utils/priceValidation';
 
 export const MarketplacePage = () => {
   const { user } = useAuth();
   const { inventory, refetch } = useInventory(user?.id);
   const { balance, fetchBalance } = useWallet();
-  const { tradesForMe, postTradeOffer, getOffersForTrade, acceptTrade, cancelTradeById, rejectTradeOffer } = useTrade(user?.id);
+  const { tradesForMe, myOffers, postTradeOffer, getOffersForTrade, acceptTrade, cancelTradeById, rejectTradeOffer, cancelTradeOffer, fetchMyOffers } = useTrade(user?.id);
   const [activeTab, setActiveTab] = useState('market'); // 'market' | 'trading' | 'myListings'
   const [marketItems, setMarketItems] = useState([]);
   const [trades, setTrades] = useState([]);
@@ -25,6 +25,15 @@ export const MarketplacePage = () => {
     dailyLimit: MARKETPLACE_LIMITS.DAILY_PURCHASE_LIMIT,
     remaining: MARKETPLACE_LIMITS.DAILY_PURCHASE_LIMIT,
     limitReached: false
+  });
+
+  // Estado para límites de trading
+  const [tradeLimitsStatus, setTradeLimitsStatus] = useState({
+    activeCount: 0,
+    maxAllowed: TRADE_LIMITS.MAX_ACTIVE_TRADES,
+    remaining: TRADE_LIMITS.MAX_ACTIVE_TRADES,
+    limitReached: false,
+    maxOffersPerTrade: TRADE_LIMITS.MAX_OFFERS_PER_TRADE
   });
 
   // Filtrar items propios y de otros
@@ -171,6 +180,7 @@ export const MarketplacePage = () => {
   useEffect(() => {
     if (user) {
       fetchDailyPurchaseStatus();
+      fetchTradeLimitsStatus();
     }
   }, [user]);
 
@@ -183,6 +193,15 @@ export const MarketplacePage = () => {
     }
   };
 
+  const fetchTradeLimitsStatus = async () => {
+    try {
+      const status = await tradeService.getTradeLimitsStatus();
+      setTradeLimitsStatus(status);
+    } catch (error) {
+      console.error("Error fetching trade limits status:", error);
+    }
+  };
+
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -191,6 +210,11 @@ export const MarketplacePage = () => {
      
       if (marketRes.success) setMarketItems(marketRes.listings);
       if (tradesRes.success) setTrades(tradesRes.data);
+      
+      // Cargar mis ofertas en intercambios de otros
+      if (user) {
+        await fetchMyOffers();
+      }
     } catch (error) {
       console.error("Error fetching marketplace data", error);
     } finally {
@@ -1467,14 +1491,47 @@ export const MarketplacePage = () => {
 
                 {/* Mis intercambios activos */}
                 <div className="bg-[#16202d] p-6 rounded-xl border border-[#2a475e]">
-                  <div className="flex justify-between items-center mb-6">
+                  <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
                     <h2 className="text-xl font-bold flex items-center gap-2">
                       <Repeat className="text-purple-500" size={24} />
                       Mis Intercambios Activos
-                      <span className="bg-purple-500/20 text-purple-400 text-sm px-2 py-0.5 rounded-full">
-                        {myTrades.length}
+                      <span className={`text-sm px-2 py-0.5 rounded-full ${
+                        tradeLimitsStatus.limitReached
+                          ? 'bg-red-500/20 text-red-400'
+                          : 'bg-purple-500/20 text-purple-400'
+                      }`}>
+                        {myTrades.length}/{tradeLimitsStatus.maxAllowed}
                       </span>
                     </h2>
+                    {/* Info sobre límites */}
+                    {tradeLimitsStatus.remaining <= 3 && !tradeLimitsStatus.limitReached && (
+                      <div className="flex items-center gap-2 text-sm text-yellow-400">
+                        <AlertTriangle size={14} />
+                        <span>Te quedan {tradeLimitsStatus.remaining} intercambios disponibles</span>
+                      </div>
+                    )}
+                    {tradeLimitsStatus.limitReached && (
+                      <div className="flex items-center gap-2 text-sm text-red-400">
+                        <AlertTriangle size={14} />
+                        <span>Límite de intercambios alcanzado</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Info sobre sistema de negociación */}
+                  <div className="bg-[#1b2838] border border-[#2a475e] rounded-lg p-4 mb-4">
+                    <div className="flex items-start gap-3">
+                      <Info className="text-blue-400 mt-0.5 flex-shrink-0" size={18} />
+                      <div className="text-sm text-gray-400">
+                        <p className="mb-1">
+                          <span className="text-white font-medium">Items en Negociación:</span> Los items que ofreces en respuesta a intercambios 
+                          se marcan como "En Negociación" y pueden usarse en múltiples propuestas simultáneamente.
+                        </p>
+                        <p>
+                          Cada intercambio puede recibir hasta <span className="text-purple-400 font-medium">{tradeLimitsStatus.maxOffersPerTrade} ofertas</span>.
+                        </p>
+                      </div>
+                    </div>
                   </div>
 
                   {myTrades.length === 0 ? (
@@ -1534,7 +1591,10 @@ export const MarketplacePage = () => {
                                     cancelTradeById(trade.id)
                                       .then((response) => showSuccessMessage(response))
                                       .catch(() => showErrorMessage())
-                                      .finally(() => fetchData());
+                                      .finally(() => {
+                                        fetchData();
+                                        fetchTradeLimitsStatus(); // Actualizar límites
+                                      });
                                   }
                                 }}
                                 className="bg-red-600 hover:bg-red-500 px-4 py-2 rounded font-medium transition flex items-center gap-2"
@@ -1550,13 +1610,118 @@ export const MarketplacePage = () => {
                   )}
                 </div>
 
+                {/* Mis ofertas en intercambios de otros */}
+                <div className="bg-[#16202d] p-6 rounded-xl border border-[#2a475e]">
+                  <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
+                    <h2 className="text-xl font-bold flex items-center gap-2">
+                      <Send className="text-teal-500" size={24} />
+                      Mis Ofertas en Intercambios de Otros
+                      <span className="text-sm px-2 py-0.5 rounded-full bg-teal-500/20 text-teal-400">
+                        {myOffers?.length || 0}
+                      </span>
+                    </h2>
+                  </div>
+
+                  {/* Info sobre sistema de ofertas */}
+                  <div className="bg-[#1b2838] border border-[#2a475e] rounded-lg p-4 mb-4">
+                    <div className="flex items-start gap-3">
+                      <Info className="text-teal-400 mt-0.5 flex-shrink-0" size={18} />
+                      <div className="text-sm text-gray-400">
+                        <p>
+                          <span className="text-white font-medium">Ofertas Enviadas:</span> Estos son los items que has ofrecido 
+                          como respuesta a intercambios publicados por otros usuarios. Puedes cancelar una oferta en cualquier momento 
+                          mientras el intercambio original siga activo.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {!myOffers || myOffers.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-center bg-[#1b2838] rounded-lg border border-dashed border-gray-700">
+                      <div className="w-16 h-16 bg-[#2a475e] rounded-full flex items-center justify-center mb-4">
+                        <Send className="text-gray-400" size={32} />
+                      </div>
+                      <h3 className="text-lg font-bold text-white mb-2">No tienes ofertas pendientes</h3>
+                      <p className="text-gray-400 max-w-md">
+                        Cuando ofertes items en intercambios de otros usuarios, aparecerán aquí.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {myOffers.map((offer) => (
+                        <div key={offer.id} className="bg-[#1b2838] border border-teal-500/30 p-4 rounded-lg">
+                          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                            {/* Badge de oferta */}
+                            <div className="flex items-center gap-4 flex-1">
+                              <div className="bg-teal-500 text-white text-xs px-2 py-1 rounded font-bold">
+                                TU OFERTA
+                              </div>
+                              
+                              <div className="flex items-center gap-4">
+                                <div className="text-center bg-black/20 p-3 rounded">
+                                  <span className="text-xs text-gray-400 uppercase tracking-wider">Ofreces</span>
+                                  <div className="text-teal-400 font-semibold mt-1">{offer.item?.name || 'Item'}</div>
+                                </div>
+                                
+                                <Repeat className="text-gray-500" />
+                                
+                                <div className="text-center bg-black/20 p-3 rounded">
+                                  <span className="text-xs text-gray-400 uppercase tracking-wider">A cambio de</span>
+                                  <div className="text-purple-400 font-semibold mt-1">
+                                    {offer.trade?.item?.name || 'Item del intercambio'}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-col items-end gap-2">
+                              {/* Info del dueño del intercambio */}
+                              <div className="flex items-center gap-2 text-sm text-gray-400">
+                                <User size={14} />
+                                <span>Intercambio de: <span className="text-white">{offer.trade?.offerer?.username || 'Usuario'}</span></span>
+                              </div>
+                              
+                              <button 
+                                onClick={async () => {
+                                  const confirmed = await showConfirmDialog(
+                                    '¿Estás seguro de que deseas cancelar esta oferta? El ítem volverá a estar disponible.',
+                                    'Cancelar oferta'
+                                  );
+                                  if (confirmed) {
+                                    cancelTradeOffer(offer.id)
+                                      .then((response) => showSuccessMessage(response))
+                                      .catch(() => showErrorMessage())
+                                      .finally(() => {
+                                        fetchData();
+                                      });
+                                  }
+                                }}
+                                className="bg-red-600 hover:bg-red-500 px-4 py-2 rounded font-medium transition flex items-center gap-2"
+                              >
+                                <X size={16} />
+                                Cancelar oferta
+                              </button>
+                            </div>
+                          </div>
+                          
+                          {/* Fecha de la oferta */}
+                          <div className="mt-3 pt-3 border-t border-gray-700 flex items-center gap-2 text-xs text-gray-500">
+                            <Clock size={12} />
+                            Ofrecido el: {new Date(offer.created_at).toLocaleDateString()} a las {new Date(offer.created_at).toLocaleTimeString()}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 {/* Resumen */}
                 <div className="bg-[#16202d] p-6 rounded-xl border border-[#2a475e]">
                   <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
                     <Info className="text-blue-400" size={20} />
                     Resumen de tus publicaciones
                   </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div className="bg-[#1b2838] p-4 rounded-lg text-center">
                       <div className="text-3xl font-bold text-yellow-400">{myMarketListings.length}</div>
                       <div className="text-gray-400 text-sm">Artículos en venta</div>
@@ -1568,7 +1733,13 @@ export const MarketplacePage = () => {
                     </div>
                     <div className="bg-[#1b2838] p-4 rounded-lg text-center">
                       <div className="text-3xl font-bold text-purple-400">{myTrades.length}</div>
-                      <div className="text-gray-400 text-sm">Intercambios activos</div>
+                      <div className="text-gray-400 text-sm">Intercambios propios</div>
+                      <div className="text-purple-400/60 text-xs mt-1">Items que ofreciste</div>
+                    </div>
+                    <div className="bg-[#1b2838] p-4 rounded-lg text-center">
+                      <div className="text-3xl font-bold text-teal-400">{myOffers?.length || 0}</div>
+                      <div className="text-gray-400 text-sm">Ofertas enviadas</div>
+                      <div className="text-teal-400/60 text-xs mt-1">A intercambios de otros</div>
                     </div>
                     <div className="bg-[#1b2838] p-4 rounded-lg text-center">
                       <div className="text-3xl font-bold text-blue-400">{tradesForMe?.length || 0}</div>

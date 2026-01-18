@@ -1,11 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Package, Gamepad2, ArrowLeft, Search, Filter, Grid, List, Lock, TrendingUp, RefreshCw, DollarSign, X, ShoppingCart, Repeat, AlertTriangle, Edit2, Save, Loader2 } from 'lucide-react';
 import { useAuth } from '../../../shared/context/AuthContext';
 import { useInventory } from '../hooks/useInventory';
 import { inventoryService } from '../services/inventoryService';
 import { useTrade } from '../hooks/useTrade';
-import { validatePrice, sanitizePriceInput, formatPriceOnBlur, getPriceValidationState, PRICE_CONFIG, MARKETPLACE_LIMITS } from '../utils/priceValidation';
+import { tradeService } from '../services/tradeService';
+import { validatePrice, sanitizePriceInput, formatPriceOnBlur, getPriceValidationState, PRICE_CONFIG, MARKETPLACE_LIMITS, TRADE_LIMITS } from '../utils/priceValidation';
 
 export const InventoryPage = () => {
   const { user } = useAuth();
@@ -31,6 +32,51 @@ export const InventoryPage = () => {
   // Contar items actualmente listados para venta
   const activeListingsCount = inventory?.filter(item => item.active_listing)?.length || 0;
   const canListMore = activeListingsCount < MARKETPLACE_LIMITS.MAX_ACTIVE_LISTINGS;
+
+  // Estado para límites de trading
+  const [tradeLimitsStatus, setTradeLimitsStatus] = useState({
+    activeCount: 0,
+    maxAllowed: TRADE_LIMITS.MAX_ACTIVE_TRADES,
+    remaining: TRADE_LIMITS.MAX_ACTIVE_TRADES,
+    limitReached: false
+  });
+
+  // Cargar límites de trading cuando hay usuario
+  useEffect(() => {
+    if (user) {
+      fetchTradeLimitsStatus();
+    }
+  }, [user]);
+
+  const fetchTradeLimitsStatus = async () => {
+    try {
+      const status = await tradeService.getTradeLimitsStatus();
+      setTradeLimitsStatus(status);
+    } catch (error) {
+      console.error("Error fetching trade limits:", error);
+    }
+  };
+
+  const handleTradeClick = async () => {
+    // Verificar límite de trades antes de crear uno nuevo
+    if (tradeLimitsStatus.limitReached) {
+      showErrorMessage(
+        `Has alcanzado el límite máximo de ${TRADE_LIMITS.MAX_ACTIVE_TRADES} intercambios activos. Cancela alguno para crear más.`
+      );
+      return;
+    }
+    
+    try {
+      const response = await postTrade(selectedItem.id);
+      setSelectedItem(null);
+      setItemActualModalSell(null);
+      showSuccessMessage(response.message);
+      refetch();
+      fetchTradeLimitsStatus(); // Actualizar el contador
+    } catch (error) {
+      showErrorMessage(error.message || 'Error al crear el intercambio');
+    }
+  };
 
   const handleSellClick = async () => {
      // Verificar límite de listings antes de abrir el modal
@@ -70,6 +116,7 @@ export const InventoryPage = () => {
       .finally(() => {
         setIsSubmitting(false);
         refetch();
+        fetchTradeLimitsStatus(); // Actualizar límites
       });
   };
 
@@ -1017,14 +1064,20 @@ export const InventoryPage = () => {
                   )}
                   {selectedItem.is_tradeable && !selectedItem.is_locked && (
                      <button
-                        onClick={() => {
-                          postTrade(selectedItem.id)
-                            .then((response) => {setSelectedItem(null); setItemActualModalSell(null);showSuccessMessage(response.message); refetch();})
-                            .catch(() => showErrorMessage());
-                        }}
-                        className="flex-1 bg-[#2a475e] hover:bg-[#3d5f7a] text-white font-medium py-3 rounded-lg transition-colors flex items-center justify-center gap-2">
+                        onClick={handleTradeClick}
+                        disabled={tradeLimitsStatus.limitReached}
+                        className={`flex-1 font-medium py-3 rounded-lg transition-colors flex items-center justify-center gap-2 ${
+                          tradeLimitsStatus.limitReached
+                            ? 'bg-gray-600 cursor-not-allowed text-gray-400'
+                            : 'bg-[#2a475e] hover:bg-[#3d5f7a] text-white'
+                        }`}
+                        title={tradeLimitsStatus.limitReached ? `Límite de ${TRADE_LIMITS.MAX_ACTIVE_TRADES} intercambios alcanzado` : ''}
+                      >
                         <RefreshCw size={18} />
-                        Intercambiar
+                        {tradeLimitsStatus.limitReached 
+                          ? `Límite (${tradeLimitsStatus.activeCount}/${tradeLimitsStatus.maxAllowed})`
+                          : 'Intercambiar'
+                        }
                      </button>
                   )}
                    <button 

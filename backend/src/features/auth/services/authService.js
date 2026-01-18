@@ -32,7 +32,9 @@ export const authService = {
         balance: 0,
         is_limited: true,
         country_code: null,
-        inventory_privacy: 'Public',
+        inventory_privacy: 'public',
+        trade_privacy: 'public',
+        marketplace_privacy: 'public',
         created_at: new Date().toISOString()
       });
 

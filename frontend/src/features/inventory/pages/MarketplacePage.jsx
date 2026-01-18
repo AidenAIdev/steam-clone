@@ -225,21 +225,21 @@ export const MarketplacePage = () => {
   const handleTradeOffer = (tradeId, itemId) => {
      postTradeOffer(tradeId, itemId)
       .then((response) => {setSelectedSellItem(null); setShowTradeOfferModal(false);showSuccessMessage(response)})
-      .catch(() => showErrorMessage())
+      .catch((error) => showErrorMessage(error.message || 'Error al enviar la oferta'))
       .finally(() => {refetch();});
   };
 
   const handleAcceptOffer = (tradeId) => {
      acceptTrade(tradeId)
       .then((response) => {setShowTradeOfferForMeModal(false);showSuccessMessage(response)})
-      .catch(() => showErrorMessage())
+      .catch((error) => showErrorMessage(error.message || 'Error al aceptar la oferta'))
       .finally(()=> fetchData())
     };
     
     const handleRejectOffer = (tradeId) => {
       rejectTradeOffer(tradeId)
       .then((response) => {setShowTradeOfferForMeModal(false);showSuccessMessage(response)})
-      .catch(() => showErrorMessage())
+      .catch((error) => showErrorMessage(error.message || 'Error al rechazar la oferta'))
       .finally(()=> fetchData())
   };
 
@@ -1590,7 +1590,7 @@ export const MarketplacePage = () => {
                                   if (confirmed) {
                                     cancelTradeById(trade.id)
                                       .then((response) => showSuccessMessage(response))
-                                      .catch(() => showErrorMessage())
+                                      .catch((error) => showErrorMessage(error.message || 'Error al cancelar el intercambio'))
                                       .finally(() => {
                                         fetchData();
                                         fetchTradeLimitsStatus(); // Actualizar límites
@@ -1690,7 +1690,7 @@ export const MarketplacePage = () => {
                                   if (confirmed) {
                                     cancelTradeOffer(offer.id)
                                       .then((response) => showSuccessMessage(response))
-                                      .catch(() => showErrorMessage())
+                                      .catch((error) => showErrorMessage(error.message || 'Error al cancelar la oferta'))
                                       .finally(() => {
                                         fetchData();
                                       });

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Package, Gamepad2, ArrowLeft, Search, Filter, Grid, List, Lock, TrendingUp, RefreshCw, DollarSign, X } from 'lucide-react';
+import { Package, Gamepad2, ArrowLeft, Search, Filter, Grid, List, Lock, TrendingUp, RefreshCw, DollarSign, X, ShoppingCart, Repeat } from 'lucide-react';
 import { useAuth } from '../../../shared/context/AuthContext';
 import { useInventory } from '../hooks/useInventory';
 import { inventoryService } from '../services/inventoryService';
@@ -9,7 +9,7 @@ import { useTrade } from '../hooks/useTrade';
 export const InventoryPage = () => {
   const { user } = useAuth();
   const { inventory, loading, error, refetch } = useInventory(user?.id);
-  const { postTrade , getTradeOffersByItemId, cancelTradeOffer} = useTrade();
+  const { postTrade , getTradeOffersByItemId, cancelTradeOffer, cancelTradeById} = useTrade();
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
   const [sortBy, setSortBy] = useState('id'); // 'id', 'tradeable', 'marketable'
@@ -32,6 +32,24 @@ export const InventoryPage = () => {
       .then((response) => {setSelectedItem(null); setItemActualModalSell(null);showSuccessMessage(response)})
       .catch(() => showErrorMessage())
       .finally(() => {refetch();});
+  };
+
+  // Cancelar un trade (intercambio) activo por su ID
+  const handleCancelTrade = (tradeId) => {
+    if (!confirm('¿Estás seguro de que deseas cancelar este intercambio? El ítem volverá a estar disponible.')) return;
+    
+    setIsSubmitting(true);
+    cancelTradeById(tradeId)
+      .then((response) => {
+        setSelectedItem(null); 
+        setItemActualModalSell(null);
+        showSuccessMessage(response || 'Intercambio cancelado exitosamente');
+      })
+      .catch((err) => showErrorMessage(err.message))
+      .finally(() => {
+        setIsSubmitting(false);
+        refetch();
+      });
   };
 
   const checkItemIsOffered = async (itemId)=>{
@@ -485,9 +503,23 @@ export const InventoryPage = () => {
                   {/* Status indicators */}
                   <div className="absolute top-2 right-2 flex flex-col gap-1">
                     {item.is_locked && (
-                      <div className="bg-red-500/90 p-1.5 rounded" title="Bloqueado">
-                        <Lock size={14} className="text-white" />
-                      </div>
+                      <>
+                        {item.active_listing && (
+                          <div className="bg-yellow-500/90 p-1.5 rounded" title="En Venta">
+                            <ShoppingCart size={14} className="text-white" />
+                          </div>
+                        )}
+                        {(item.active_trade || item.active_trade_offer) && (
+                          <div className="bg-purple-500/90 p-1.5 rounded" title="En Intercambio">
+                            <Repeat size={14} className="text-white" />
+                          </div>
+                        )}
+                        {!item.active_listing && !item.active_trade && !item.active_trade_offer && (
+                          <div className="bg-red-500/90 p-1.5 rounded" title="Bloqueado">
+                            <Lock size={14} className="text-white" />
+                          </div>
+                        )}
+                      </>
                     )}
                     {item.is_tradeable && !item.is_locked && (
                       <div className="bg-green-500/90 p-1.5 rounded" title="Intercambiable">
@@ -506,14 +538,27 @@ export const InventoryPage = () => {
                     {item.name}
                   </h3>
                   <div className="flex gap-2 mt-2 flex-wrap">
-                    {item.is_tradeable && !item.is_locked && (
-                      <span className="text-green-400 text-xs bg-green-400/10 px-2 py-0.5 rounded">Intercambiable</span>
-                    )}
-                    {item.is_marketable && !item.is_locked && (
-                      <span className="text-blue-400 text-xs bg-blue-400/10 px-2 py-0.5 rounded">Vendible</span>
-                    )}
-                    {item.is_locked && (
-                      <span className="text-red-400 text-xs bg-red-400/10 px-2 py-0.5 rounded">Bloqueado</span>
+                    {item.is_locked ? (
+                      <>
+                        {item.active_listing && (
+                          <span className="text-yellow-400 text-xs bg-yellow-400/10 px-2 py-0.5 rounded">En Venta</span>
+                        )}
+                        {(item.active_trade || item.active_trade_offer) && (
+                          <span className="text-purple-400 text-xs bg-purple-400/10 px-2 py-0.5 rounded">En Intercambio</span>
+                        )}
+                        {!item.active_listing && !item.active_trade && !item.active_trade_offer && (
+                          <span className="text-red-400 text-xs bg-red-400/10 px-2 py-0.5 rounded">Bloqueado</span>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        {item.is_tradeable && (
+                          <span className="text-green-400 text-xs bg-green-400/10 px-2 py-0.5 rounded">Intercambiable</span>
+                        )}
+                        {item.is_marketable && (
+                          <span className="text-blue-400 text-xs bg-blue-400/10 px-2 py-0.5 rounded">Vendible</span>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
@@ -548,9 +593,23 @@ export const InventoryPage = () => {
                   </div>
                   <div className="md:col-span-3">
                     {item.is_locked ? (
-                      <span className="text-red-400 flex items-center gap-1">
-                        <Lock size={14} /> Bloqueado
-                      </span>
+                      <>
+                        {item.active_listing && (
+                          <span className="text-yellow-400 flex items-center gap-1">
+                            <ShoppingCart size={14} /> En Venta (${item.active_listing.price})
+                          </span>
+                        )}
+                        {(item.active_trade || item.active_trade_offer) && (
+                          <span className="text-purple-400 flex items-center gap-1">
+                            <Repeat size={14} /> En Intercambio
+                          </span>
+                        )}
+                        {!item.active_listing && !item.active_trade && !item.active_trade_offer && (
+                          <span className="text-red-400 flex items-center gap-1">
+                            <Lock size={14} /> Bloqueado
+                          </span>
+                        )}
+                      </>
                     ) : (
                       <span className="text-green-400 flex items-center gap-1">
                         Disponible
@@ -634,9 +693,28 @@ export const InventoryPage = () => {
                      <h3 className="text-gray-400 text-xs uppercase tracking-wider mb-2 font-bold">Estado del Item</h3>
                      <div className="flex flex-wrap gap-2">
                         {selectedItem.is_locked ? (
-                          <span className="bg-red-500/20 text-red-400 px-3 py-1 rounded-md text-sm font-medium flex items-center gap-2">
-                            <Lock size={16} /> Bloqueado (En uso / Venta)
-                          </span>
+                          <>
+                            {selectedItem.active_listing && (
+                              <span className="bg-yellow-500/20 text-yellow-400 px-3 py-1 rounded-md text-sm font-medium flex items-center gap-2">
+                                <ShoppingCart size={16} /> En Venta (${selectedItem.active_listing.price})
+                              </span>
+                            )}
+                            {selectedItem.active_trade && (
+                              <span className="bg-purple-500/20 text-purple-400 px-3 py-1 rounded-md text-sm font-medium flex items-center gap-2">
+                                <Repeat size={16} /> En Intercambio
+                              </span>
+                            )}
+                            {selectedItem.active_trade_offer && (
+                              <span className="bg-orange-500/20 text-orange-400 px-3 py-1 rounded-md text-sm font-medium flex items-center gap-2">
+                                <Repeat size={16} /> Ofrecido en Intercambio
+                              </span>
+                            )}
+                            {!selectedItem.active_listing && !selectedItem.active_trade && !selectedItem.active_trade_offer && (
+                              <span className="bg-red-500/20 text-red-400 px-3 py-1 rounded-md text-sm font-medium flex items-center gap-2">
+                                <Lock size={16} /> Bloqueado
+                              </span>
+                            )}
+                          </>
                         ) : (
                           <span className="bg-green-500/20 text-green-400 px-3 py-1 rounded-md text-sm font-medium flex items-center gap-2">
                              Disponible
@@ -667,13 +745,31 @@ export const InventoryPage = () => {
                   </div>
                 </div>
 
-                <div className="flex gap-3">
-                  {/* Botón cancelar venta si está activo */}
+                <div className="flex gap-3 flex-wrap">
+                  {/* Botón cancelar oferta de intercambio si está activo */}
                   { itemActualModalSell && (
                     <button onClick={() => handleCancelTradeOffer(selectedItem.id)}
-                      className="flex-1 bg-red-600 hover:bg-red-500 text-white font-medium py-3 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-lg shadow-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                    > Cancelar intercambio</button>
+                      disabled={isSubmitting}
+                      className="flex-1 bg-orange-600 hover:bg-orange-500 text-white font-medium py-3 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-lg shadow-orange-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                    > 
+                      <X size={18} />
+                      Cancelar Oferta
+                    </button>
                   )}
+                  
+                  {/* Botón cancelar intercambio (trade) si está activo */}
+                  {selectedItem.active_trade && (      
+                    <button 
+                      onClick={() => handleCancelTrade(selectedItem.active_trade.id)}
+                      disabled={isSubmitting}
+                      className="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-medium py-3 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-lg shadow-purple-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <X size={18} />
+                      Cancelar Intercambio
+                    </button>
+                  )}
+
+                  {/* Botón cancelar venta si está activo */}
                   {selectedItem.active_listing && (      
                     <button 
                       onClick={() => handleCancelSelling(selectedItem.active_listing.id)}
@@ -698,7 +794,7 @@ export const InventoryPage = () => {
                      <button
                         onClick={() => {
                           postTrade(selectedItem.id)
-                            .then((response) => {setSelectedItem(null); setItemActualModalSell(null);showSuccessMessage(response.message)})
+                            .then((response) => {setSelectedItem(null); setItemActualModalSell(null);showSuccessMessage(response.message); refetch();})
                             .catch(() => showErrorMessage());
                         }}
                         className="flex-1 bg-[#2a475e] hover:bg-[#3d5f7a] text-white font-medium py-3 rounded-lg transition-colors flex items-center justify-center gap-2">

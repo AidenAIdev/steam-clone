@@ -10,6 +10,7 @@ router.post('/sync', requireAuth, inventoryController.syncInventory);
 // Mercado y Ventas
 router.post('/sell', requireAuth, inventoryController.sellItem);
 router.post('/sell/cancel', requireAuth, inventoryController.cancelListing);
+router.post('/market/purchase', requireAuth, inventoryController.purchaseItem);
 router.get('/market', optionalAuth, inventoryController.getMarketListings);
 router.get('/trades', optionalAuth, inventoryController.getActiveTrades);
 

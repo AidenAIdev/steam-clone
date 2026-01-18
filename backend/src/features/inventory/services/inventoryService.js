@@ -53,8 +53,7 @@ export const inventoryService = {
             throw new Error('No tienes permiso para ver este inventario');
         }
 
-        // Modificamos el select para incluir listings activos
-        // marketplace_listings devuleve un array, filtramos en JS o asumimos que solo hay 1 activo
+        // Modificamos el select para incluir listings activos y trades activos
         const { data, error } = await supabase
             .from('items')
             .select(`
@@ -69,15 +68,53 @@ export const inventoryService = {
 
         if (error) throw error;
 
-        // Procesamos para dejar solo el listing activo en una propiedad
+        // Obtener trades activos del usuario (donde el item está en intercambio)
+        const { data: activeTrades, error: tradesError } = await supabase
+            .from('trade')
+            .select('id, item_id, status')
+            .eq('offerer_id', ownerId)
+            .eq('status', 'Pendiente');
+
+        if (tradesError) {
+            console.error('Error fetching active trades:', tradesError);
+        }
+
+        // Obtener trade_offers activos del usuario
+        const { data: activeTradeOffers, error: offersError } = await supabase
+            .from('trade_offer')
+            .select('id, item_id, trade_id, status')
+            .eq('offerer_id', ownerId)
+            .eq('status', 'Pendiente');
+
+        if (offersError) {
+            console.error('Error fetching active trade offers:', offersError);
+        }
+
+        // Crear mapas para búsqueda rápida
+        const tradesMap = new Map();
+        activeTrades?.forEach(trade => {
+            tradesMap.set(trade.item_id, trade);
+        });
+
+        const offersMap = new Map();
+        activeTradeOffers?.forEach(offer => {
+            offersMap.set(offer.item_id, offer);
+        });
+
+        // Procesamos para dejar solo el listing activo y trade activo en propiedades
         return data.map(item => {
             const activeListing = item.marketplace_listings?.find(l => l.status === 'Active');
+            const activeTrade = tradesMap.get(item.id) || null;
+            const activeTradeOffer = offersMap.get(item.id) || null;
+            
             // Limpiamos la propiedad original para no enviar basura
             const { marketplace_listings, ...itemFields } = item;
             
             return {
                 ...itemFields,
-                active_listing: activeListing || null
+                active_listing: activeListing || null,
+                active_trade: activeTrade,
+                active_trade_offer: activeTradeOffer
             };
         });
     },
@@ -243,5 +280,61 @@ export const inventoryService = {
      */
     async getActiveTrades() {
         return []; 
+    },
+
+    /**
+     * Compra un item del marketplace de forma atómica y segura
+     * Source of Truth: El precio se obtiene de la DB, NO del cliente
+     * @param {string} buyerId - ID del comprador
+     * @param {string} listingId - ID del listing en el marketplace
+     * @returns {Promise<Object>} Resultado de la compra
+     */
+    async purchaseMarketplaceItem(buyerId, listingId) {
+        // Validaciones básicas
+        if (!buyerId || !listingId) {
+            throw new Error('Datos de compra incompletos');
+        }
+
+        // Generar idempotency key única para esta compra
+        const idempotencyKey = `purchase_${buyerId}_${listingId}_${Date.now()}`;
+
+        // Usar función RPC para transacción atómica
+        // El precio se obtiene DIRECTAMENTE de la DB, ignorando cualquier valor del cliente
+        const { data, error } = await supabase.rpc('purchase_marketplace_item', {
+            p_buyer_id: buyerId,
+            p_listing_id: listingId,
+            p_idempotency_key: idempotencyKey
+        });
+
+        if (error) {
+            console.error('Error en purchase_marketplace_item RPC:', error);
+            
+            // Manejar errores específicos de forma amigable
+            if (error.message.includes('Fondos insuficientes')) {
+                throw new Error(error.message);
+            }
+            if (error.message.includes('ya no está disponible')) {
+                throw new Error('Este artículo ya fue vendido o retirado del mercado');
+            }
+            if (error.message.includes('tu propio artículo')) {
+                throw new Error('No puedes comprar tu propio artículo');
+            }
+            if (error.message.includes('ya fue procesada')) {
+                throw new Error('Esta compra ya fue procesada');
+            }
+            
+            throw new Error(error.message || 'Error al procesar la compra');
+        }
+
+        return {
+            success: true,
+            message: data.message || 'Compra realizada exitosamente',
+            itemName: data.item_name,
+            pricePaid: data.price_paid,
+            newBalance: data.buyer_new_balance,
+            transactionId: data.buyer_transaction_id,
+            sellerReceived: data.seller_receives,
+            commission: data.commission
+        };
     }
 };

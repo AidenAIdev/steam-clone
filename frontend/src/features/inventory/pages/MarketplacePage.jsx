@@ -1,20 +1,28 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ShoppingCart, Repeat, Search, DollarSign, Filter, Package, X, ArrowLeft, Inbox, Check, Info, Send } from 'lucide-react';
+import { ShoppingCart, Repeat, Search, DollarSign, Filter, Package, X, ArrowLeft, Inbox, Check, Info, Send, Loader2, User, Tag } from 'lucide-react';
 import { inventoryService } from '../services/inventoryService';
 import { useAuth } from '../../../shared/context/AuthContext';
 import { useInventory } from '../hooks/useInventory';
 import { tradeService } from '../services/tradeService';
 import { useTrade } from '../hooks/useTrade';
+import { useWallet } from '../../wallet/hooks/useWallet';
 
 export const MarketplacePage = () => {
   const { user } = useAuth();
   const { inventory, refetch } = useInventory(user?.id);
+  const { balance, fetchBalance } = useWallet();
   const { tradesForMe, postTradeOffer, getOffersForTrade, acceptTrade, cancelTradeById, rejectTradeOffer } = useTrade(user?.id);
-  const [activeTab, setActiveTab] = useState('market'); // 'market' | 'trading'
+  const [activeTab, setActiveTab] = useState('market'); // 'market' | 'trading' | 'myListings'
   const [marketItems, setMarketItems] = useState([]);
   const [trades, setTrades] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Filtrar items propios y de otros
+  const myMarketListings = marketItems.filter(item => item.seller_id === user?.id);
+  const otherMarketListings = marketItems.filter(item => item.seller_id !== user?.id);
+  const myTrades = trades.filter(trade => trade.offerer_id === user?.id);
+  const otherTrades = trades.filter(trade => trade.offerer_id !== user?.id);
 
   // Estados para el Modal de Venta
   const [showSellModal, setShowSellModal] = useState(false);
@@ -23,6 +31,11 @@ export const MarketplacePage = () => {
   const [showCancelTradeModal, setShowCancelTradeModal] = useState(false);
   const [selectedSellItem, setSelectedSellItem] = useState(null);
   const [sellPrice, setSellPrice] = useState('');
+
+  // Estados para el Modal de Compra
+  const [showPurchaseModal, setShowPurchaseModal] = useState(false);
+  const [selectedPurchaseItem, setSelectedPurchaseItem] = useState(null);
+  const [isPurchasing, setIsPurchasing] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -64,10 +77,53 @@ export const MarketplacePage = () => {
       .finally(()=> fetchData())
   };
 
+  // Abre el modal de confirmación de compra
+  const handleBuyItem = (item) => {
+    if (!user) {
+      showErrorMessage('Debes iniciar sesión para comprar');
+      return;
+    }
+    setSelectedPurchaseItem(item);
+    setShowPurchaseModal(true);
+  };
 
+  // Procesa la compra de forma segura
+  const handleConfirmPurchase = async () => {
+    if (!selectedPurchaseItem || isPurchasing) return;
 
-  const handleBuyItem = (itemName, price) => {
-    alert(`Has comprado "${itemName}" por $${price}. (Mock)`);
+    setIsPurchasing(true);
+    try {
+      // NOTA: Solo enviamos el listingId, el precio se obtiene del servidor
+      const result = await inventoryService.purchaseItem(selectedPurchaseItem.id);
+      
+      // Cerrar modal y mostrar éxito
+      setShowPurchaseModal(false);
+      setSelectedPurchaseItem(null);
+      
+      showSuccessMessage(
+        `¡Compra exitosa! Has adquirido "${result.itemName}" por $${result.pricePaid?.toFixed(2) || selectedPurchaseItem.price}`
+      );
+      
+      // Actualizar datos
+      fetchData(); // Recargar marketplace
+      refetch(); // Recargar inventario
+      fetchBalance(); // Recargar balance del wallet
+      
+    } catch (error) {
+      console.error('Error en la compra:', error);
+      
+      // Mensajes de error específicos
+      if (error.message.includes('Fondos insuficientes')) {
+        showErrorMessage(error.message);
+      } else if (error.message.includes('ya fue vendido') || error.message.includes('no está disponible')) {
+        showErrorMessage('Este artículo ya no está disponible');
+        fetchData(); // Recargar para actualizar la lista
+      } else {
+        showErrorMessage(error.message || 'Error al procesar la compra');
+      }
+    } finally {
+      setIsPurchasing(false);
+    }
   };
 
   const handleCancelListing = async (listingId) => {
@@ -325,7 +381,7 @@ export const MarketplacePage = () => {
               }`}
             >
               <ShoppingCart size={18} />
-              Compra y Venta
+              Comprar
             </button>
             <button
               onClick={() => setActiveTab('trading')}
@@ -338,7 +394,33 @@ export const MarketplacePage = () => {
               <Repeat size={18} />
               Intercambios
             </button>
+            {user && (
+              <button
+                onClick={() => setActiveTab('myListings')}
+                className={`px-6 py-2 rounded-md font-medium transition-all flex items-center gap-2 ${
+                  activeTab === 'myListings' 
+                    ? 'bg-green-600 text-white shadow' 
+                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <Tag size={18} />
+                Mis Publicaciones
+                {(myMarketListings.length + myTrades.length) > 0 && (
+                  <span className="bg-green-500 text-white text-xs px-2 py-0.5 rounded-full">
+                    {myMarketListings.length + myTrades.length}
+                  </span>
+                )}
+              </button>
+            )}
           </div>
+
+          {/* Balance del usuario */}
+          {user && (
+            <div className="mt-4 flex items-center gap-2 text-sm">
+              <span className="text-gray-400">Tu balance:</span>
+              <span className="text-green-400 font-bold">${(balance || 0).toFixed(2)}</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -349,12 +431,12 @@ export const MarketplacePage = () => {
           </div>
         ) : (
           <>
-            {/* Market Section */}
+            {/* Market Section - Solo items de OTROS usuarios */}
             {activeTab === 'market' && (
               <div className="space-y-6">
                 <div className="bg-[#16202d] p-6 rounded-xl border border-[#2a475e]">
                   <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-xl font-bold">Items Populares</h2>
+                    <h2 className="text-xl font-bold">Items Disponibles para Comprar</h2>
                     <div className="flex gap-2">
                        <button 
                          onClick={handleSellItem}
@@ -365,57 +447,69 @@ export const MarketplacePage = () => {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {marketItems.map((item) => (
-                      <div key={item.id} className="bg-[#1b2838] border border-gray-700 p-4 rounded-lg hover:border-blue-500 transition cursor-pointer group">
-                        <div className="h-32 bg-gradient-to-br from-gray-700 to-gray-800 rounded-md mb-3 flex items-center justify-center">
-                            <Package className="text-gray-500 group-hover:text-blue-400 transition" size={48} />
-                        </div>
-                        <h3 className="font-semibold text-blue-300 truncate">{item.name || item.itemName || `Item #${item.steam_item_id}`}</h3>
-                        <p className="text-xs text-gray-400 mb-2">{item.game || "Steam"}</p>
-                        <div className="flex justify-between items-center mt-3">
-                          <span className="text-green-400 font-bold text-lg">
-                            ${typeof item.price === 'number' ? item.price.toFixed(2) : parseFloat(item.price).toFixed(2)}
-                          </span>
-                          
-                          {/* Botón condicional: Cancelar si soy dueño (por ID o nombre), Comprar si es otro */}
-                          {(item.seller_id === user?.id || item.seller === user?.username) ? (
-                              <button 
-                                onClick={() => handleCancelListing(item.id)}
-                                className="bg-red-600 hover:bg-red-500 px-3 py-1 rounded text-sm font-medium transition"
-                              >
-                                Cancelar
-                              </button>
-                          ) : (
-                              <button 
-                                onClick={() => handleBuyItem(item.name || item.itemName, item.price)}
-                                className="bg-green-600 hover:bg-green-500 px-3 py-1 rounded text-sm font-medium transition"
-                              >
-                                Comprar
-                              </button>
-                          )}
-                        </div>
-                        <div className="text-xs text-gray-500 mt-2 text-right">
-                          Vendedor: {item.seller}
-                        </div>
+                  {otherMarketListings.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <div className="w-16 h-16 bg-[#2a475e] rounded-full flex items-center justify-center mb-4">
+                        <ShoppingCart className="text-gray-400" size={32} />
                       </div>
-                    ))}
-                  </div>
+                      <h3 className="text-xl font-bold text-white mb-2">No hay items disponibles</h3>
+                      <p className="text-gray-400 max-w-md">
+                        No hay artículos de otros usuarios a la venta en este momento.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      {otherMarketListings.map((item) => (
+                        <div key={item.id} className="bg-[#1b2838] border border-gray-700 p-4 rounded-lg hover:border-blue-500 transition cursor-pointer group">
+                          <div className="h-32 bg-gradient-to-br from-gray-700 to-gray-800 rounded-md mb-3 flex items-center justify-center">
+                              <Package className="text-gray-500 group-hover:text-blue-400 transition" size={48} />
+                          </div>
+                          <h3 className="font-semibold text-blue-300 truncate">{item.name || item.itemName || `Item #${item.steam_item_id}`}</h3>
+                          <p className="text-xs text-gray-400 mb-2">{item.game || "Steam"}</p>
+                          <div className="flex justify-between items-center mt-3">
+                            <span className="text-green-400 font-bold text-lg">
+                              ${typeof item.price === 'number' ? item.price.toFixed(2) : parseFloat(item.price).toFixed(2)}
+                            </span>
+                            
+                            <button 
+                              onClick={() => handleBuyItem(item)}
+                              disabled={!user}
+                              className="bg-green-600 hover:bg-green-500 px-3 py-1 rounded text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              Comprar
+                            </button>
+                          </div>
+                          <div className="text-xs text-gray-500 mt-2 text-right">
+                            Vendedor: {item.seller}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
 
-            {/* Trading Section */}
+            {/* Trading Section - Solo trades de OTROS usuarios */}
             {activeTab === 'trading' && (
               <div className="bg-[#16202d] rounded-xl overflow-hidden border border-[#2a475e]">
                 <div className="p-6 border-b border-[#2a475e] flex justify-between items-center">
-                    <h2 className="text-xl font-bold">Ofertas de Intercambio Activas</h2>
-                  
+                    <h2 className="text-xl font-bold">Intercambios Disponibles</h2>
                 </div>
 
-                
-                <div className="divide-y divide-[#2a475e]">
-               {trades.map((trade) => (
+                {otherTrades.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <div className="w-16 h-16 bg-[#2a475e] rounded-full flex items-center justify-center mb-4">
+                      <Repeat className="text-gray-400" size={32} />
+                    </div>
+                    <h3 className="text-xl font-bold text-white mb-2">No hay intercambios disponibles</h3>
+                    <p className="text-gray-400 max-w-md">
+                      No hay ofertas de intercambio de otros usuarios en este momento.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-[#2a475e]">
+               {otherTrades.map((trade) => (
                   <div key={trade.id} className="p-6 flex flex-col md:flex-row items-center justify-between gap-6 hover:bg-[#1b2838] transition">
                       
                       <div className="flex items-center gap-6 flex-1">
@@ -442,75 +536,13 @@ export const MarketplacePage = () => {
                       </div>
 
                       <div className="flex items-center gap-4">
-                        {trade.offerer_id === user?.id && (
-                          <button onClick={() => setShowCancelTradeModal(true)} 
-                          className="flex-1 px-2 bg-red-600 hover:bg-red-500 text-white font-medium py-3 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-lg shadow-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed">
-                            Cancelar Intercambio
-                          </button>
-                        )}
-                      
-                        {trade.offerer_id === user?.id && (
-                          <button onClick={()=>{getOffersForTrade(trade.id)
-                            setShowTradeOfferForMeModal(true);
-                          }} className="bg-[#2a475e] hover:bg-blue-600 px-6 py-3 rounded font-medium transition">
-                            Ver ofertas
-                          </button>
-                        )}
-                      </div>
-
-                      {
-                        showCancelTradeModal && (
-                          <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
-                            <div className="bg-[#1b2838] rounded-xl shadow-2xl max-w-md w-full border border-[#2a475e] flex flex-col">
-                              {/* Modal Header */}  
-                              <div className="p-6 border-b border-[#2a475e] flex justify-between items-center bg-[#171a21] rounded-t-xl">
-                                <h2 className="text-xl font-bold text-white">Cancelar Intercambio</h2>
-                                <button
-                                  onClick={() => setShowCancelTradeModal(false)}
-                                  className="text-gray-400 hover:text-white"
-                                >
-                                  <X size={20} />
-                                </button>
-                              </div>
-                              {/* Modal Content */}
-                              <div className="p-6 flex-1">
-                                <p className="text-gray-400 mb-4">
-                                  ¿Estás seguro de que deseas cancelar este intercambio? Esta acción no se puede deshacer.
-                                </p>
-                                <div className="flex justify-end gap-3">
-                                  <button
-                                    onClick={() => setShowCancelTradeModal(false)}
-                                    className="px-4 py-2 bg-[#2a475e] hover:bg-[#3a577e] text-white rounded-lg font-medium transition-colors"
-                                  >
-                                    Cancelar
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      cancelTradeById(trade.id)
-                                      .then((response) => {setShowCancelTradeModal(false);showSuccessMessage(response)})
-                                      .catch(() => showErrorMessage())
-                                      .finally(() => {fetchData();});
-                                      
-                                    }}
-                                    className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg font-medium transition-colors"
-                                  >
-                                    Confirmar Cancelación
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        )
-                      }
-
-                      {trade.offerer_id !== user?.id && (
                         <button 
                           onClick={() => setShowTradeOfferModal(true)}
                           className="bg-[#2a475e] hover:bg-blue-600 px-6 py-3 rounded font-medium transition"
                         >
-                          Intercambiar
+                          Ofrecer Intercambio
                         </button>
-                      )}
+                      </div>
 
                      {showTradeOfferModal && (
                         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
@@ -663,6 +695,199 @@ export const MarketplacePage = () => {
 
                   </div>
               ))}
+                </div>
+                )}
+              </div>
+            )}
+
+            {/* Mis Publicaciones Section */}
+            {activeTab === 'myListings' && user && (
+              <div className="space-y-8">
+                {/* Mis artículos en venta */}
+                <div className="bg-[#16202d] p-6 rounded-xl border border-[#2a475e]">
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-xl font-bold flex items-center gap-2">
+                      <ShoppingCart className="text-yellow-500" size={24} />
+                      Mis Artículos en Venta
+                      <span className="bg-yellow-500/20 text-yellow-400 text-sm px-2 py-0.5 rounded-full">
+                        {myMarketListings.length}
+                      </span>
+                    </h2>
+                    <button 
+                      onClick={handleSellItem}
+                      className="bg-green-600 hover:bg-green-500 px-4 py-2 rounded text-sm transition flex items-center gap-2"
+                    >
+                      <DollarSign size={16} />
+                      Vender nuevo item
+                    </button>
+                  </div>
+
+                  {myMarketListings.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-center bg-[#1b2838] rounded-lg border border-dashed border-gray-700">
+                      <div className="w-16 h-16 bg-[#2a475e] rounded-full flex items-center justify-center mb-4">
+                        <ShoppingCart className="text-gray-400" size={32} />
+                      </div>
+                      <h3 className="text-lg font-bold text-white mb-2">No tienes artículos en venta</h3>
+                      <p className="text-gray-400 max-w-md mb-4">
+                        Cuando publiques un artículo para venta, aparecerá aquí.
+                      </p>
+                      <button 
+                        onClick={handleSellItem}
+                        className="bg-green-600 hover:bg-green-500 px-4 py-2 rounded text-sm transition"
+                      >
+                        Vender un item
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      {myMarketListings.map((item) => (
+                        <div key={item.id} className="bg-[#1b2838] border border-yellow-500/30 p-4 rounded-lg relative group">
+                          {/* Badge de propiedad */}
+                          <div className="absolute top-2 left-2 bg-yellow-500 text-black text-xs px-2 py-0.5 rounded font-bold">
+                            TU ARTÍCULO
+                          </div>
+                          
+                          <div className="h-32 bg-gradient-to-br from-gray-700 to-gray-800 rounded-md mb-3 flex items-center justify-center">
+                            <Package className="text-yellow-400" size={48} />
+                          </div>
+                          <h3 className="font-semibold text-yellow-300 truncate">{item.name || item.itemName || `Item #${item.steam_item_id}`}</h3>
+                          <p className="text-xs text-gray-400 mb-2">{item.game || "Steam"}</p>
+                          <div className="flex justify-between items-center mt-3">
+                            <span className="text-green-400 font-bold text-lg">
+                              ${typeof item.price === 'number' ? item.price.toFixed(2) : parseFloat(item.price).toFixed(2)}
+                            </span>
+                            
+                            <button 
+                              onClick={() => handleCancelListing(item.id)}
+                              className="bg-red-600 hover:bg-red-500 px-3 py-1 rounded text-sm font-medium transition flex items-center gap-1"
+                            >
+                              <X size={14} />
+                              Cancelar
+                            </button>
+                          </div>
+                          <div className="text-xs text-gray-500 mt-2">
+                            Publicado: {new Date(item.listing_date).toLocaleDateString()}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Mis intercambios activos */}
+                <div className="bg-[#16202d] p-6 rounded-xl border border-[#2a475e]">
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-xl font-bold flex items-center gap-2">
+                      <Repeat className="text-purple-500" size={24} />
+                      Mis Intercambios Activos
+                      <span className="bg-purple-500/20 text-purple-400 text-sm px-2 py-0.5 rounded-full">
+                        {myTrades.length}
+                      </span>
+                    </h2>
+                  </div>
+
+                  {myTrades.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-center bg-[#1b2838] rounded-lg border border-dashed border-gray-700">
+                      <div className="w-16 h-16 bg-[#2a475e] rounded-full flex items-center justify-center mb-4">
+                        <Repeat className="text-gray-400" size={32} />
+                      </div>
+                      <h3 className="text-lg font-bold text-white mb-2">No tienes intercambios activos</h3>
+                      <p className="text-gray-400 max-w-md">
+                        Cuando publiques una oferta de intercambio, aparecerá aquí.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {myTrades.map((trade) => (
+                        <div key={trade.id} className="bg-[#1b2838] border border-purple-500/30 p-4 rounded-lg">
+                          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                            {/* Badge de propiedad */}
+                            <div className="flex items-center gap-4 flex-1">
+                              <div className="bg-purple-500 text-white text-xs px-2 py-1 rounded font-bold">
+                                TU OFERTA
+                              </div>
+                              
+                              <div className="flex items-center gap-4">
+                                <div className="text-center bg-black/20 p-3 rounded">
+                                  <span className="text-xs text-gray-400 uppercase tracking-wider">Ofreces</span>
+                                  <div className="text-purple-400 font-semibold mt-1">{trade.item.name}</div>
+                                </div>
+                                
+                                <Repeat className="text-gray-500" />
+                                
+                                <div className="text-center bg-black/20 p-3 rounded">
+                                  <span className="text-xs text-gray-400 uppercase tracking-wider">Pides</span>
+                                  <div className="text-gray-400 italic mt-1">Cualquier item</div>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                              <button 
+                                onClick={() => {
+                                  getOffersForTrade(trade.id);
+                                  setShowTradeOfferForMeModal(true);
+                                }} 
+                                className="bg-[#2a475e] hover:bg-blue-600 px-4 py-2 rounded font-medium transition flex items-center gap-2"
+                              >
+                                <Inbox size={16} />
+                                Ver ofertas
+                              </button>
+                              <button 
+                                onClick={() => {
+                                  if(confirm('¿Estás seguro de que deseas cancelar este intercambio?')) {
+                                    cancelTradeById(trade.id)
+                                      .then((response) => showSuccessMessage(response))
+                                      .catch(() => showErrorMessage())
+                                      .finally(() => fetchData());
+                                  }
+                                }}
+                                className="bg-red-600 hover:bg-red-500 px-4 py-2 rounded font-medium transition flex items-center gap-2"
+                              >
+                                <X size={16} />
+                                Cancelar
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Resumen */}
+                <div className="bg-[#16202d] p-6 rounded-xl border border-[#2a475e]">
+                  <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                    <Info className="text-blue-400" size={20} />
+                    Resumen de tus publicaciones
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-[#1b2838] p-4 rounded-lg text-center">
+                      <div className="text-3xl font-bold text-yellow-400">{myMarketListings.length}</div>
+                      <div className="text-gray-400 text-sm">Artículos en venta</div>
+                      {myMarketListings.length > 0 && (
+                        <div className="text-green-400 text-sm mt-1">
+                          Total: ${myMarketListings.reduce((sum, item) => sum + parseFloat(item.price), 0).toFixed(2)}
+                        </div>
+                      )}
+                    </div>
+                    <div className="bg-[#1b2838] p-4 rounded-lg text-center">
+                      <div className="text-3xl font-bold text-purple-400">{myTrades.length}</div>
+                      <div className="text-gray-400 text-sm">Intercambios activos</div>
+                    </div>
+                    <div className="bg-[#1b2838] p-4 rounded-lg text-center">
+                      <div className="text-3xl font-bold text-blue-400">{tradesForMe?.length || 0}</div>
+                      <div className="text-gray-400 text-sm">Ofertas recibidas</div>
+                      {(tradesForMe?.length || 0) > 0 && (
+                        <button 
+                          onClick={() => setShowTradeOfferForMeModal(true)}
+                          className="text-blue-400 text-sm mt-1 hover:underline"
+                        >
+                          Ver ofertas →
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
@@ -885,6 +1110,116 @@ export const MarketplacePage = () => {
           </div>
         )
       }
+
+      {/* Modal de Confirmación de Compra */}
+      {showPurchaseModal && selectedPurchaseItem && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+          <div className="bg-[#1b2838] rounded-xl shadow-2xl max-w-md w-full border border-[#2a475e] overflow-hidden">
+            {/* Header */}
+            <div className="p-6 border-b border-[#2a475e] bg-[#171a21] flex justify-between items-center">
+              <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                <ShoppingCart className="text-green-500" />
+                Confirmar Compra
+              </h3>
+              <button 
+                onClick={() => {setShowPurchaseModal(false); setSelectedPurchaseItem(null);}}
+                disabled={isPurchasing}
+                className="text-gray-400 hover:text-white disabled:opacity-50"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6">
+              {/* Item Preview */}
+              <div className="flex items-center gap-4 mb-6 bg-[#16202d] p-4 rounded-lg border border-[#2a475e]">
+                <div className="w-16 h-16 bg-gradient-to-br from-gray-700 to-gray-800 rounded-lg flex items-center justify-center">
+                  <Package className="text-blue-400" size={32} />
+                </div>
+                <div className="flex-1 overflow-hidden">
+                  <h4 className="font-bold text-white truncate">
+                    {selectedPurchaseItem.name || selectedPurchaseItem.itemName || `Item #${selectedPurchaseItem.steam_item_id}`}
+                  </h4>
+                  <p className="text-sm text-gray-400">Vendedor: {selectedPurchaseItem.seller}</p>
+                </div>
+              </div>
+
+              {/* Price Details */}
+              <div className="space-y-3 mb-6">
+                <div className="flex justify-between items-center py-2 border-b border-[#2a475e]">
+                  <span className="text-gray-400">Precio del artículo</span>
+                  <span className="text-white font-bold text-lg">
+                    ${typeof selectedPurchaseItem.price === 'number' 
+                      ? selectedPurchaseItem.price.toFixed(2) 
+                      : parseFloat(selectedPurchaseItem.price).toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400">Tu balance actual</span>
+                  <span className={`font-medium ${(balance || 0) >= selectedPurchaseItem.price ? 'text-green-400' : 'text-red-400'}`}>
+                    ${(balance || 0).toFixed(2)}
+                  </span>
+                </div>
+                {(balance || 0) < selectedPurchaseItem.price && (
+                  <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 mt-2">
+                    <p className="text-red-400 text-sm flex items-center gap-2">
+                      <Info size={16} />
+                      Fondos insuficientes. Necesitas ${(selectedPurchaseItem.price - (balance || 0)).toFixed(2)} más.
+                    </p>
+                  </div>
+                )}
+                <div className="flex justify-between items-center pt-2 border-t border-[#2a475e]">
+                  <span className="text-gray-300 font-medium">Balance después de compra</span>
+                  <span className={`font-bold ${(balance || 0) >= selectedPurchaseItem.price ? 'text-green-400' : 'text-red-400'}`}>
+                    ${Math.max(0, (balance || 0) - selectedPurchaseItem.price).toFixed(2)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Warning */}
+              <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 mb-6">
+                <p className="text-yellow-400 text-sm flex items-start gap-2">
+                  <Info size={16} className="mt-0.5 flex-shrink-0" />
+                  <span>Esta acción no se puede deshacer. El artículo se agregará a tu inventario inmediatamente.</span>
+                </p>
+              </div>
+
+              {/* Buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {setShowPurchaseModal(false); setSelectedPurchaseItem(null);}}
+                  disabled={isPurchasing}
+                  className="flex-1 px-4 py-3 border border-gray-600 rounded-lg text-gray-300 hover:text-white hover:bg-gray-800 transition disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleConfirmPurchase}
+                  disabled={isPurchasing || (balance || 0) < selectedPurchaseItem.price}
+                  className={`flex-1 flex justify-center items-center gap-2 rounded-lg font-bold text-white py-3 transition-all
+                    ${isPurchasing || (balance || 0) < selectedPurchaseItem.price
+                      ? 'bg-gray-600 cursor-not-allowed opacity-50'
+                      : 'bg-green-600 hover:bg-green-500 shadow-lg shadow-green-900/30'
+                    }`}
+                >
+                  {isPurchasing ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin" />
+                      Procesando...
+                    </>
+                  ) : (
+                    <>
+                      <ShoppingCart size={18} />
+                      Confirmar Compra
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

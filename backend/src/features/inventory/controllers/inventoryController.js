@@ -125,5 +125,66 @@ export const inventoryController = {
         } catch (error) {
             res.status(500).json({ success: false, message: error.message });
         }
+    },
+
+    /**
+     * Comprar un item del marketplace
+     * IMPORTANTE: El precio NO se recibe del cliente, se obtiene de la DB
+     */
+    async purchaseItem(req, res) {
+        try {
+            const buyerId = req.user.id;
+            const { listingId } = req.body;
+
+            // Validación básica
+            if (!listingId) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: 'ID de publicación requerido' 
+                });
+            }
+
+            // Validar formato UUID básico (prevenir inyección)
+            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+            if (!uuidRegex.test(listingId)) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: 'Formato de ID inválido' 
+                });
+            }
+
+            const result = await inventoryService.purchaseMarketplaceItem(buyerId, listingId);
+
+            res.json({
+                success: true,
+                message: result.message,
+                data: {
+                    itemName: result.itemName,
+                    pricePaid: result.pricePaid,
+                    newBalance: result.newBalance,
+                    transactionId: result.transactionId
+                }
+            });
+        } catch (error) {
+            console.error('Error en purchaseItem:', error);
+            
+            // Determinar código de estado apropiado
+            let statusCode = 500;
+            if (error.message.includes('Fondos insuficientes')) {
+                statusCode = 402; // Payment Required
+            } else if (error.message.includes('no está disponible') || 
+                       error.message.includes('ya fue vendido')) {
+                statusCode = 409; // Conflict
+            } else if (error.message.includes('tu propio artículo')) {
+                statusCode = 400; // Bad Request
+            } else if (error.message.includes('ya fue procesada')) {
+                statusCode = 409; // Conflict
+            }
+
+            res.status(statusCode).json({ 
+                success: false, 
+                message: error.message 
+            });
+        }
     }
 };

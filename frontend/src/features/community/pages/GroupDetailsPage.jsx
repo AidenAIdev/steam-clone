@@ -28,6 +28,7 @@ export default function GroupDetailsPage() {
     const [rulesText, setRulesText] = useState('');
     const [isBanModalOpen, setIsBanModalOpen] = useState(false);
     const [selectedReport, setSelectedReport] = useState(null);
+    const [searchMember, setSearchMember] = useState('');
     const { 
         group, 
         members, 
@@ -246,6 +247,16 @@ export default function GroupDetailsPage() {
         } catch (err) {
             console.error('Error en handleBanUser:', err);
             alert(err.message || 'Error al banear usuario');
+        }
+    };
+
+    const handleRoleChange = async (memberId, newRole) => {
+        try {
+            await updateMemberRole(memberId, newRole);
+            // fetchMembers se llama automáticamente en updateMemberRole
+        } catch (err) {
+            console.error('Error changing role:', err);
+            alert(err.message || 'Error al cambiar el rol');
         }
     };
 
@@ -534,10 +545,21 @@ export default function GroupDetailsPage() {
 
                 {activeTab === 'members' && (
                     <div className="space-y-6">
-                        <h2 className="text-2xl font-bold text-white mb-6">Miembros del Grupo</h2>
+                        <div className="flex items-center justify-between mb-6">
+                            <h2 className="text-2xl font-bold text-white">Miembros del Grupo</h2>
+                            <div className="relative">
+                                <input
+                                    type="text"
+                                    placeholder="Buscar miembros"
+                                    value={searchMember}
+                                    onChange={(e) => setSearchMember(e.target.value)}
+                                    className="w-64 px-4 py-2 bg-[#2a475e] text-white rounded-lg border border-gray-600 focus:outline-none focus:border-blue-500 transition-colors"
+                                />
+                            </div>
+                        </div>
                         
                         {/* Dueño - Solo visible para moderadores y dueños */}
-                        {isModerator && members.filter(m => m.rol === 'Owner').length > 0 && (
+                        {isModerator && members.filter(m => m.rol === 'Owner' && (!searchMember || m.profiles?.username?.toLowerCase().includes(searchMember.toLowerCase()))).length > 0 && (
                             <div>
                                 <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
                                     <Shield className="text-yellow-400" size={20} />
@@ -545,7 +567,7 @@ export default function GroupDetailsPage() {
                                 </h3>
                                 <div className="bg-[#2a475e] rounded-lg overflow-hidden">
                                     <div className="divide-y divide-[#1b2838]">
-                                        {members.filter(m => m.rol === 'Owner').map((member) => (
+                                        {members.filter(m => m.rol === 'Owner' && (!searchMember || m.profiles?.username?.toLowerCase().includes(searchMember.toLowerCase()))).map((member) => (
                                             <div key={member.id} className="p-4 flex items-center justify-between hover:bg-[#3a576e] transition-colors">
                                                 <div className="flex items-center gap-3">
                                                     <div className="w-12 h-12 bg-[#1b2838] rounded-full flex items-center justify-center">
@@ -564,9 +586,9 @@ export default function GroupDetailsPage() {
                                                 </div>
                                                 <div className="flex items-center gap-3">
                                                     {getRoleBadge(member.rol)}
-                                                    {user && member.id_perfil !== user.id && (
+                                                    {user && member.profiles?.id !== user.id && (
                                                         <ReportButton
-                                                            targetId={member.id_perfil}
+                                                            targetId={member.profiles?.id}
                                                             targetType="perfil"
                                                             groupId={groupId}
                                                             targetTitle={member.profiles?.username}
@@ -582,15 +604,15 @@ export default function GroupDetailsPage() {
                         )}
 
                         {/* Moderadores - Solo visible para moderadores y dueños */}
-                        {isModerator && members.filter(m => m.rol === 'Moderator').length > 0 && (
+                        {isModerator && members.filter(m => m.rol === 'Moderator' && (!searchMember || m.profiles?.username?.toLowerCase().includes(searchMember.toLowerCase()))).length > 0 && (
                             <div>
                                 <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
                                     <Shield className="text-blue-400" size={20} />
-                                    Moderadores ({members.filter(m => m.rol === 'Moderator').length})
+                                    Moderadores ({members.filter(m => m.rol === 'Moderator' && (!searchMember || m.profiles?.username?.toLowerCase().includes(searchMember.toLowerCase()))).length})
                                 </h3>
                                 <div className="bg-[#2a475e] rounded-lg overflow-hidden">
                                     <div className="divide-y divide-[#1b2838]">
-                                        {members.filter(m => m.rol === 'Moderator').map((member) => (
+                                        {members.filter(m => m.rol === 'Moderator' && (!searchMember || m.profiles?.username?.toLowerCase().includes(searchMember.toLowerCase()))).map((member) => (
                                             <div key={member.id} className="p-4 flex items-center justify-between hover:bg-[#3a576e] transition-colors">
                                                 <div className="flex items-center gap-3">
                                                     <div className="w-12 h-12 bg-[#1b2838] rounded-full flex items-center justify-center">
@@ -608,10 +630,21 @@ export default function GroupDetailsPage() {
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-3">
-                                                    {getRoleBadge(member.rol)}
-                                                    {user && member.id_perfil !== user.id && (
+                                                    {isOwner ? (
+                                                        <select
+                                                            value={member.rol}
+                                                            onChange={(e) => handleRoleChange(member.profiles?.id, e.target.value)}
+                                                            className="px-3 py-1 text-sm font-semibold rounded bg-[#1b2838] text-white border border-gray-600 hover:border-blue-500 focus:outline-none focus:border-blue-500 transition-colors"
+                                                        >
+                                                            <option value="Moderator">Moderador</option>
+                                                            <option value="Member">Miembro</option>
+                                                        </select>
+                                                    ) : (
+                                                        getRoleBadge(member.rol)
+                                                    )}
+                                                    {user && member.profiles?.id !== user.id && (
                                                         <ReportButton
-                                                            targetId={member.id_perfil}
+                                                            targetId={member.profiles?.id}
                                                             targetType="perfil"
                                                             groupId={groupId}
                                                             targetTitle={member.profiles?.username}
@@ -627,15 +660,15 @@ export default function GroupDetailsPage() {
                         )}
 
                         {/* Miembros - Visible para todos */}
-                        {members.filter(m => m.rol === 'Member').length > 0 && (
+                        {members.filter(m => m.rol === 'Member' && (!searchMember || m.profiles?.username?.toLowerCase().includes(searchMember.toLowerCase()))).length > 0 && (
                             <div>
                                 <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
                                     <Users className="text-gray-400" size={20} />
-                                    Miembros ({members.filter(m => m.rol === 'Member').length})
+                                    Miembros ({members.filter(m => m.rol === 'Member' && (!searchMember || m.profiles?.username?.toLowerCase().includes(searchMember.toLowerCase()))).length})
                                 </h3>
                                 <div className="bg-[#2a475e] rounded-lg overflow-hidden">
                                     <div className="divide-y divide-[#1b2838]">
-                                        {members.filter(m => m.rol === 'Member').map((member) => (
+                                        {members.filter(m => m.rol === 'Member' && (!searchMember || m.profiles?.username?.toLowerCase().includes(searchMember.toLowerCase()))).map((member) => (
                                             <div key={member.id} className="p-4 flex items-center justify-between hover:bg-[#3a576e] transition-colors">
                                                 <div className="flex items-center gap-3">
                                                     <div className="w-12 h-12 bg-[#1b2838] rounded-full flex items-center justify-center">
@@ -653,10 +686,21 @@ export default function GroupDetailsPage() {
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-3">
-                                                    {getRoleBadge(member.rol)}
-                                                    {user && member.id_perfil !== user.id && (
+                                                    {isOwner ? (
+                                                        <select
+                                                            value={member.rol}
+                                                            onChange={(e) => handleRoleChange(member.profiles?.id, e.target.value)}
+                                                            className="px-3 py-1 text-sm font-semibold rounded bg-[#1b2838] text-white border border-gray-600 hover:border-blue-500 focus:outline-none focus:border-blue-500 transition-colors"
+                                                        >
+                                                            <option value="Member">Miembro</option>
+                                                            <option value="Moderator">Moderador</option>
+                                                        </select>
+                                                    ) : (
+                                                        getRoleBadge(member.rol)
+                                                    )}
+                                                    {user && member.profiles?.id !== user.id && (
                                                         <ReportButton
-                                                            targetId={member.id_perfil}
+                                                            targetId={member.profiles?.id}
                                                             targetType="perfil"
                                                             groupId={groupId}
                                                             targetTitle={member.profiles?.username}

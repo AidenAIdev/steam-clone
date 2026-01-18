@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Package, Gamepad2, ArrowLeft, Search, Filter, Grid, List, Lock, TrendingUp, RefreshCw, DollarSign, X, ShoppingCart, Repeat } from 'lucide-react';
+import { Package, Gamepad2, ArrowLeft, Search, Filter, Grid, List, Lock, TrendingUp, RefreshCw, DollarSign, X, ShoppingCart, Repeat, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../../../shared/context/AuthContext';
 import { useInventory } from '../hooks/useInventory';
 import { inventoryService } from '../services/inventoryService';
 import { useTrade } from '../hooks/useTrade';
+import { validatePrice, sanitizePriceInput, formatPriceOnBlur, getPriceValidationState, PRICE_CONFIG, MARKETPLACE_LIMITS } from '../utils/priceValidation';
 
 export const InventoryPage = () => {
   const { user } = useAuth();
@@ -22,7 +23,18 @@ export const InventoryPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [itemActualModalSell, setItemActualModalSell] = useState(null);
 
+  // Contar items actualmente listados para venta
+  const activeListingsCount = inventory?.filter(item => item.active_listing)?.length || 0;
+  const canListMore = activeListingsCount < MARKETPLACE_LIMITS.MAX_ACTIVE_LISTINGS;
+
   const handleSellClick = async () => {
+     // Verificar límite de listings antes de abrir el modal
+     if (!canListMore) {
+       showErrorMessage(
+         `Has alcanzado el límite máximo de ${MARKETPLACE_LIMITS.MAX_ACTIVE_LISTINGS} artículos en venta. Cancela alguna venta para publicar más.`
+       );
+       return;
+     }
      setShowSellModal(true);
      setSellPrice('');
   };
@@ -62,10 +74,21 @@ export const InventoryPage = () => {
   }
 
   const handleConfirmSell = async () => {
-      if (!selectedItem || !sellPrice) return;
+      if (!selectedItem || !sellPrice) {
+        showErrorMessage('Por favor define un precio válido.');
+        return;
+      }
+
+      // Validar precio
+      const priceValidation = validatePrice(sellPrice);
+      if (!priceValidation.valid) {
+        showErrorMessage(priceValidation.message);
+        return;
+      }
+
       setIsSubmitting(true);
       try {
-          await inventoryService.sellItem(user.id, selectedItem, sellPrice);
+          await inventoryService.sellItem(user.id, selectedItem, priceValidation.price);
           showSuccessMessage('Item puesto a la venta correctamente');
           setShowSellModal(false);
           setSelectedItem(null);
@@ -843,13 +866,19 @@ export const InventoryPage = () => {
                     </button>
                   )}
 
-                  {selectedItem.is_marketable && !selectedItem.is_locked && (
+                  {selectedItem.is_marketable && !selectedItem.is_locked && !selectedItem.active_listing && (
                     <button 
                       onClick={()=>handleSellClick(selectedItem.id)}
-                      className="flex-1 bg-green-600 hover:bg-green-500 text-white font-medium py-3 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-lg shadow-green-900/20"
+                      disabled={!canListMore}
+                      title={!canListMore ? `Límite de ${MARKETPLACE_LIMITS.MAX_ACTIVE_LISTINGS} items alcanzado` : ''}
+                      className={`flex-1 font-medium py-3 rounded-lg transition-colors flex items-center justify-center gap-2 ${
+                        canListMore
+                          ? 'bg-green-600 hover:bg-green-500 text-white shadow-lg shadow-green-900/20'
+                          : 'bg-gray-600 cursor-not-allowed text-gray-400'
+                      }`}
                     >
                       <DollarSign size={18} />
-                      Vender
+                      {canListMore ? 'Vender' : `Límite (${activeListingsCount}/${MARKETPLACE_LIMITS.MAX_ACTIVE_LISTINGS})`}
                     </button>
                   )}
                   {selectedItem.is_tradeable && !selectedItem.is_locked && (
@@ -909,15 +938,33 @@ export const InventoryPage = () => {
                          </div>
                          <input
                             type="number"
-                            min="0.01"
+                            min={PRICE_CONFIG.MIN}
+                            max={PRICE_CONFIG.MAX}
                             step="0.01"
                             value={sellPrice}
-                            onChange={(e) => setSellPrice(e.target.value)}
-                            className="bg-[#16202d] border border-gray-600 text-white text-lg rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full pl-8 p-3 transition-colors"
+                            onChange={(e) => {
+                              const result = sanitizePriceInput(e.target.value);
+                              if (result.isValid) setSellPrice(result.value);
+                            }}
+                            onBlur={(e) => {
+                              const formatted = formatPriceOnBlur(e.target.value);
+                              if (formatted) setSellPrice(formatted);
+                            }}
+                            className={`bg-[#16202d] border text-white text-lg rounded-lg focus:ring-blue-500 block w-full pl-8 p-3 transition-colors
+                              ${getPriceValidationState(sellPrice).isTooLow || getPriceValidationState(sellPrice).isTooHigh
+                                ? 'border-red-500 focus:border-red-500'
+                                : 'border-gray-600 focus:border-blue-500'
+                              }`}
                             placeholder="0.00"
                             autoFocus
                          />
                       </div>
+                      {getPriceValidationState(sellPrice).isTooHigh && (
+                        <p className="text-red-400 text-xs mt-1">El precio máximo es ${PRICE_CONFIG.MAX.toLocaleString()}</p>
+                      )}
+                      {getPriceValidationState(sellPrice).isTooLow && (
+                        <p className="text-red-400 text-xs mt-1">El precio mínimo es ${PRICE_CONFIG.MIN.toFixed(2)}</p>
+                      )}
                       <p className="mt-2 text-xs text-gray-500 flex justify-between">
                          <span>Comisión de Steam (5%):</span>
                          <span className="text-gray-300">

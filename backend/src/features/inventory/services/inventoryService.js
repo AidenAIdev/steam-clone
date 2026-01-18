@@ -182,6 +182,24 @@ export const inventoryService = {
     },
 
     /**
+     * Cuenta los listings activos de un usuario
+     */
+    async countActiveListings(userId) {
+        const { count, error } = await supabase
+            .from('marketplace_listings')
+            .select('*', { count: 'exact', head: true })
+            .eq('seller_id', userId)
+            .eq('status', 'active');
+
+        if (error) {
+            console.error("Error contando listings activos:", error);
+            throw new Error(error.message);
+        }
+
+        return count || 0;
+    },
+
+    /**
      * Pone un item a la venta usando una transacción DB (ACID Compliant)
      */
     async listForSale(userId, itemId, price) {

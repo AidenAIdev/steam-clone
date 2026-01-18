@@ -57,11 +57,45 @@ export const inventoryController = {
             const userId = req.user.id;
             const { itemId, price } = req.body;
 
-            if (!itemId || !price) {
-                return res.status(400).json({ success: false, message: 'Faltan datos' });
+            if (!itemId || price === undefined || price === null) {
+                return res.status(400).json({ success: false, message: 'Faltan datos requeridos (itemId y price)' });
             }
 
-            const item = await inventoryService.listForSale(userId, itemId, price);
+            // Validación de límite de listings activos
+            const MAX_ACTIVE_LISTINGS = 10;
+            const activeListingsCount = await inventoryService.countActiveListings(userId);
+            
+            if (activeListingsCount >= MAX_ACTIVE_LISTINGS) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: `Has alcanzado el límite máximo de ${MAX_ACTIVE_LISTINGS} artículos en venta. Cancela alguna venta para publicar más.`,
+                    code: 'MAX_LISTINGS_REACHED',
+                    currentCount: activeListingsCount,
+                    maxAllowed: MAX_ACTIVE_LISTINGS
+                });
+            }
+
+            // Validación de precio
+            const PRICE_MIN = 0.01;
+            const PRICE_MAX = 999999.99;
+            const numPrice = parseFloat(price);
+
+            if (isNaN(numPrice)) {
+                return res.status(400).json({ success: false, message: 'El precio debe ser un número válido' });
+            }
+
+            if (numPrice < PRICE_MIN) {
+                return res.status(400).json({ success: false, message: `El precio mínimo es $${PRICE_MIN.toFixed(2)}` });
+            }
+
+            if (numPrice > PRICE_MAX) {
+                return res.status(400).json({ success: false, message: `El precio máximo es $${PRICE_MAX.toLocaleString()}` });
+            }
+
+            // Redondear a 2 decimales para evitar problemas de precisión
+            const sanitizedPrice = Math.round(numPrice * 100) / 100;
+
+            const item = await inventoryService.listForSale(userId, itemId, sanitizedPrice);
 
             res.json({
                 success: true,

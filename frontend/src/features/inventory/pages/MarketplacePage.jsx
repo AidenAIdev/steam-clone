@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ShoppingCart, Repeat, Search, DollarSign, Filter, Package, X, ArrowLeft, Inbox, Check, Info, Send, Loader2, User, Tag } from 'lucide-react';
+import { ShoppingCart, Repeat, Search, DollarSign, Filter, Package, X, ArrowLeft, Inbox, Check, Info, Send, Loader2, User, Tag, AlertTriangle } from 'lucide-react';
 import { inventoryService } from '../services/inventoryService';
 import { useAuth } from '../../../shared/context/AuthContext';
 import { useInventory } from '../hooks/useInventory';
 import { tradeService } from '../services/tradeService';
 import { useTrade } from '../hooks/useTrade';
 import { useWallet } from '../../wallet/hooks/useWallet';
+import { validatePrice, sanitizePriceInput, formatPriceOnBlur, getPriceValidationState, PRICE_CONFIG, MARKETPLACE_LIMITS } from '../utils/priceValidation';
 
 export const MarketplacePage = () => {
   const { user } = useAuth();
@@ -145,6 +146,13 @@ export const MarketplacePage = () => {
   };
 
   const handleSellItem = () => {
+    // Verificar límite de listings antes de abrir el modal
+    if (myMarketListings.length >= MARKETPLACE_LIMITS.MAX_ACTIVE_LISTINGS) {
+      showErrorMessage(
+        `Has alcanzado el límite máximo de ${MARKETPLACE_LIMITS.MAX_ACTIVE_LISTINGS} artículos en venta. Cancela alguna venta para publicar más.`
+      );
+      return;
+    }
     setShowSellModal(true);
     setSelectedSellItem(null);
     setSellPrice('');
@@ -156,17 +164,24 @@ export const MarketplacePage = () => {
       return;
     }
 
+    // Validar precio
+    const priceValidation = validatePrice(sellPrice);
+    if (!priceValidation.valid) {
+      showErrorMessage(priceValidation.message);
+      return;
+    }
+
     try {
-      const result = await inventoryService.sellItem(user.id, selectedSellItem, sellPrice);
+      const result = await inventoryService.sellItem(user.id, selectedSellItem, priceValidation.price);
       if (result.success) {
         // Actualizar lista local
         setMarketItems([result.listing, ...marketItems]);
         setShowSellModal(false);
-        showSuccessMessage(`Has puesto a la venta "${selectedSellItem.name || selectedSellItem.title}" por $${sellPrice}.`);
+        showSuccessMessage(`Has puesto a la venta "${selectedSellItem.name || selectedSellItem.title}" por $${priceValidation.price.toFixed(2)}.`);
       }
     } catch (error) {
       console.error("Error selling item:", error);
-      showErrorMessage("Hubo un error al publicar el item. Inténtalo de nuevo.");
+      showErrorMessage(error.message || "Hubo un error al publicar el item. Inténtalo de nuevo.");
     }
   };
 
@@ -760,19 +775,42 @@ export const MarketplacePage = () => {
             {/* Mis Publicaciones Section */}
             {activeTab === 'myListings' && user && (
               <div className="space-y-8">
+                {/* Indicador de límite */}
+                {myMarketListings.length >= MARKETPLACE_LIMITS.MAX_ACTIVE_LISTINGS && (
+                  <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 flex items-start gap-3">
+                    <AlertTriangle className="text-yellow-500 flex-shrink-0 mt-0.5" size={20} />
+                    <div>
+                      <h4 className="text-yellow-400 font-medium">Límite alcanzado</h4>
+                      <p className="text-gray-400 text-sm">
+                        Has alcanzado el máximo de {MARKETPLACE_LIMITS.MAX_ACTIVE_LISTINGS} artículos en venta. 
+                        Cancela alguna venta para publicar más artículos.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Mis artículos en venta */}
                 <div className="bg-[#16202d] p-6 rounded-xl border border-[#2a475e]">
                   <div className="flex justify-between items-center mb-6">
                     <h2 className="text-xl font-bold flex items-center gap-2">
                       <ShoppingCart className="text-yellow-500" size={24} />
                       Mis Artículos en Venta
-                      <span className="bg-yellow-500/20 text-yellow-400 text-sm px-2 py-0.5 rounded-full">
-                        {myMarketListings.length}
+                      <span className={`text-sm px-2 py-0.5 rounded-full ${
+                        myMarketListings.length >= MARKETPLACE_LIMITS.MAX_ACTIVE_LISTINGS
+                          ? 'bg-red-500/20 text-red-400'
+                          : 'bg-yellow-500/20 text-yellow-400'
+                      }`}>
+                        {myMarketListings.length}/{MARKETPLACE_LIMITS.MAX_ACTIVE_LISTINGS}
                       </span>
                     </h2>
                     <button 
                       onClick={handleSellItem}
-                      className="bg-green-600 hover:bg-green-500 px-4 py-2 rounded text-sm transition flex items-center gap-2"
+                      disabled={myMarketListings.length >= MARKETPLACE_LIMITS.MAX_ACTIVE_LISTINGS}
+                      className={`px-4 py-2 rounded text-sm transition flex items-center gap-2 ${
+                        myMarketListings.length >= MARKETPLACE_LIMITS.MAX_ACTIVE_LISTINGS
+                          ? 'bg-gray-600 cursor-not-allowed text-gray-400'
+                          : 'bg-green-600 hover:bg-green-500'
+                      }`}
                     >
                       <DollarSign size={16} />
                       Vender nuevo item
@@ -1012,14 +1050,32 @@ export const MarketplacePage = () => {
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
                         <input 
                           type="number" 
-                          min="0.01" 
+                          min={PRICE_CONFIG.MIN}
+                          max={PRICE_CONFIG.MAX}
                           step="0.01"
                           value={sellPrice}
-                          onChange={(e) => setSellPrice(e.target.value)}
-                          className="w-full bg-[#1b2838] border border-[#2a475e] rounded px-3 pl-7 py-2 text-white focus:outline-none focus:border-green-500"
+                          onChange={(e) => {
+                            const result = sanitizePriceInput(e.target.value);
+                            if (result.isValid) setSellPrice(result.value);
+                          }}
+                          onBlur={(e) => {
+                            const formatted = formatPriceOnBlur(e.target.value);
+                            if (formatted) setSellPrice(formatted);
+                          }}
+                          className={`w-full bg-[#1b2838] border rounded px-3 pl-7 py-2 text-white focus:outline-none transition-colors
+                            ${getPriceValidationState(sellPrice).isTooLow || getPriceValidationState(sellPrice).isTooHigh
+                              ? 'border-red-500 focus:border-red-500'
+                              : 'border-[#2a475e] focus:border-green-500'
+                            }`}
                           placeholder="0.00"
                         />
                       </div>
+                      {getPriceValidationState(sellPrice).isTooHigh && (
+                        <p className="text-red-400 text-xs mt-1">El precio máximo es ${PRICE_CONFIG.MAX.toLocaleString()}</p>
+                      )}
+                      {getPriceValidationState(sellPrice).isTooLow && (
+                        <p className="text-red-400 text-xs mt-1">El precio mínimo es ${PRICE_CONFIG.MIN.toFixed(2)}</p>
+                      )}
                     </div>
                   </div>
                   <div className="text-xs text-gray-500 mt-2">

@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Upload, Save, AlertCircle } from 'lucide-react';
+import { Upload, Save, AlertCircle, Trash2 } from 'lucide-react';
 
-export default function GroupSettingsForm({ group, onSave, onCancel }) {
+export default function GroupSettingsForm({ group, onSave, onCancel, onDelete, isOwner }) {
     const [formData, setFormData] = useState({
         nombre: group?.nombre || '',
         descripcion: group?.descripcion || '',
@@ -11,6 +11,8 @@ export default function GroupSettingsForm({ group, onSave, onCancel }) {
     const [errors, setErrors] = useState({});
     const [loading, setLoading] = useState(false);
     const [previewImage, setPreviewImage] = useState(group?.avatar_url || null);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [deleteLoading, setDeleteLoading] = useState(false);
 
     const visibilityOptions = [
         {
@@ -112,9 +114,30 @@ export default function GroupSettingsForm({ group, onSave, onCancel }) {
         );
     };
 
+    const handleDeleteClick = () => {
+        setShowDeleteConfirm(true);
+    };
+
+    const handleDeleteConfirm = async () => {
+        if (!onDelete) return;
+
+        setDeleteLoading(true);
+        try {
+            await onDelete();
+        } catch (error) {
+            setErrors({ delete: error.message });
+        } finally {
+            setDeleteLoading(false);
+            setShowDeleteConfirm(false);
+        }
+    };
+
+    const handleDeleteCancel = () => {
+        setShowDeleteConfirm(false);
+    };
+
     return (
-        <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Error general */}
+        <form onSubmit={handleSubmit} className="space-y-6">{/* Error general */}
             {errors.submit && (
                 <div className="bg-red-500/10 border border-red-500 rounded-lg p-4 flex items-start gap-3">
                     <AlertCircle className="text-red-500 shrink-0 mt-0.5" size={20} />
@@ -253,37 +276,110 @@ export default function GroupSettingsForm({ group, onSave, onCancel }) {
             </div>
 
             {/* Actions */}
-            <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#2a475e]">
-                <button
-                    type="button"
-                    onClick={onCancel}
-                    className="px-6 py-2 bg-[#2a475e] hover:bg-[#3a576e] text-white rounded transition-colors font-semibold"
-                    disabled={loading}
-                >
-                    Cancelar
-                </button>
-                <button
-                    type="submit"
-                    disabled={loading || !hasChanges()}
-                    className={`flex items-center gap-2 px-6 py-2 rounded transition-colors font-semibold ${
-                        loading || !hasChanges()
-                            ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                            : 'bg-green-600 hover:bg-green-500 text-white'
-                    }`}
-                >
-                    {loading ? (
-                        <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                            <span>Guardando...</span>
-                        </>
-                    ) : (
-                        <>
-                            <Save size={18} />
-                            <span>Guardar Cambios</span>
-                        </>
-                    )}
-                </button>
+            <div className="flex items-center justify-between pt-4 border-t border-[#2a475e]">
+                {/* Botón Borrar Grupo (solo Owner) */}
+                {isOwner && onDelete && (
+                    <button
+                        type="button"
+                        onClick={handleDeleteClick}
+                        className="flex items-center gap-2 px-6 py-2 bg-red-600 hover:bg-red-500 text-white rounded transition-colors font-semibold"
+                    >
+                        <Trash2 size={18} />
+                        <span>Borrar Grupo</span>
+                    </button>
+                )}
+                
+                <div className={`flex items-center gap-3 ${!isOwner || !onDelete ? 'ml-auto' : ''}`}>
+                    <button
+                        type="button"
+                        onClick={onCancel}
+                        className="px-6 py-2 bg-[#2a475e] hover:bg-[#3a576e] text-white rounded transition-colors font-semibold"
+                        disabled={loading}
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        type="submit"
+                        disabled={loading || !hasChanges()}
+                        className={`flex items-center gap-2 px-6 py-2 rounded transition-colors font-semibold ${
+                            loading || !hasChanges()
+                                ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                                : 'bg-green-600 hover:bg-green-500 text-white'
+                        }`}
+                    >
+                        {loading ? (
+                            <>
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                <span>Guardando...</span>
+                            </>
+                        ) : (
+                            <>
+                                <Save size={18} />
+                                <span>Guardar Cambios</span>
+                            </>
+                        )}
+                    </button>
+                </div>
             </div>
+
+            {/* Modal de Confirmación de Eliminación */}
+            {showDeleteConfirm && (
+                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+                    <div className="bg-[#1b2838] rounded-lg p-6 max-w-md w-full border-2 border-red-500">
+                        <div className="flex items-start gap-4 mb-4">
+                            <div className="bg-red-500/10 p-3 rounded-full">
+                                <AlertCircle className="text-red-500" size={28} />
+                            </div>
+                            <div className="flex-1">
+                                <h3 className="text-xl font-bold text-white mb-2">
+                                    ¿Eliminar grupo?
+                                </h3>
+                                <p className="text-gray-300 text-sm mb-2">
+                                    Esta acción es permanente y no se puede deshacer.
+                                </p>
+                                <p className="text-gray-300 text-sm">
+                                    Se eliminarán todos los foros, hilos, comentarios y anuncios asociados al grupo.
+                                </p>
+                            </div>
+                        </div>
+
+                        {errors.delete && (
+                            <div className="bg-red-500/10 border border-red-500 rounded p-3 mb-4">
+                                <p className="text-red-400 text-sm">{errors.delete}</p>
+                            </div>
+                        )}
+
+                        <div className="flex items-center gap-3 justify-end">
+                            <button
+                                type="button"
+                                onClick={handleDeleteCancel}
+                                disabled={deleteLoading}
+                                className="px-6 py-2 bg-[#2a475e] hover:bg-[#3a576e] text-white rounded transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleDeleteConfirm}
+                                disabled={deleteLoading}
+                                className="flex items-center gap-2 px-6 py-2 bg-red-600 hover:bg-red-500 text-white rounded transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {deleteLoading ? (
+                                    <>
+                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                        <span>Eliminando...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Trash2 size={18} />
+                                        <span>Eliminar Grupo</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </form>
     );
 }

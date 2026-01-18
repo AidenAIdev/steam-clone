@@ -1,11 +1,12 @@
 import { supabaseAdmin as supabase } from '../../../shared/config/supabase.js';
+import { registrarCrearGrupo, registrarEliminarGrupo, registrarActualizarGrupo } from '../utils/auditLogger.js';
 
 export const groupService = {
     /**
      * RG-001a - Crear un nuevo grupo
      * Usuario estándar puede crear hasta 10 grupos
      */
-    async createGroup(userId, groupData) {
+    async createGroup(userId, groupData, ipAddress = null) {
         // Verificar que el usuario es estándar (no limitado)
         const { data: profile, error: profileError } = await supabase
             .from('profiles')
@@ -74,13 +75,22 @@ export const groupService = {
             throw memberError;
         }
 
+        // Registrar log de auditoría
+        await registrarCrearGrupo(
+            userId,
+            grupo.id,
+            grupo.nombre,
+            grupo.visibilidad,
+            ipAddress
+        );
+
         return grupo;
     },
 
     /**
      * RG-001b - Editar grupo (solo Owner)
      */
-    async updateGroup(userId, groupId, updateData) {
+    async updateGroup(userId, groupId, updateData, ipAddress = null) {
         // Verificar que el usuario es Owner del grupo
         const { data: member, error: memberError } = await supabase
             .from('miembros_grupo')
@@ -126,7 +136,73 @@ export const groupService = {
 
         if (updateError) throw updateError;
 
+        // Registrar log de auditoría
+        await registrarActualizarGrupo(
+            userId,
+            groupId,
+            Object.keys(updateFields).filter(k => k !== 'updated_at'),
+            ipAddress
+        );
+
         return grupo;
+    },
+
+    /**
+     * RG-001d - Eliminar grupo (solo Owner)
+     */
+    async deleteGroup(userId, groupId, ipAddress = null) {
+        // Verificar que el usuario es Owner del grupo
+        const { data: member, error: memberError } = await supabase
+            .from('miembros_grupo')
+            .select('rol')
+            .eq('id_grupo', groupId)
+            .eq('id_perfil', userId)
+            .eq('estado_membresia', 'activo')
+            .is('deleted_at', null)
+            .single();
+
+        if (memberError || !member) {
+            throw new Error('No eres miembro de este grupo');
+        }
+
+        if (member.rol !== 'Owner') {
+            throw new Error('Solo el dueño puede eliminar el grupo');
+        }
+
+        // Obtener información del grupo antes de eliminarlo
+        const { data: grupoInfo } = await supabase
+            .from('grupos')
+            .select('nombre, visibilidad')
+            .eq('id', groupId)
+            .is('deleted_at', null)
+            .single();
+
+        // Soft delete del grupo
+        const { error: deleteError } = await supabase
+            .from('grupos')
+            .update({ deleted_at: new Date().toISOString() })
+            .eq('id', groupId)
+            .is('deleted_at', null);
+
+        if (deleteError) throw deleteError;
+
+        // También hacer soft delete de todos los miembros del grupo
+        await supabase
+            .from('miembros_grupo')
+            .update({ deleted_at: new Date().toISOString() })
+            .eq('id_grupo', groupId)
+            .is('deleted_at', null);
+
+        // Registrar log de auditoría
+        await registrarEliminarGrupo(
+            userId,
+            groupId,
+            grupoInfo?.nombre || 'Desconocido',
+            grupoInfo?.visibilidad || 'Desconocido',
+            ipAddress
+        );
+
+        return { success: true };
     },
 
     /**

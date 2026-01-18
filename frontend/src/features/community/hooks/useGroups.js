@@ -218,6 +218,20 @@ export function useGroupDetails(groupId) {
         }
     }, [groupId, fetchPendingRequests]);
 
+    const deleteGroup = useCallback(async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            await groupService.deleteGroup(groupId);
+            return true;
+        } catch (err) {
+            setError(err.message);
+            throw err;
+        } finally {
+            setLoading(false);
+        }
+    }, [groupId]);
+
     return {
         group,
         members,
@@ -231,6 +245,7 @@ export function useGroupDetails(groupId) {
         updateMemberRole,
         toggleMemberBan,
         inviteUser,
-        handleJoinRequest
+        handleJoinRequest,
+        deleteGroup
     };
 }

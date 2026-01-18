@@ -45,7 +45,8 @@ export default function GroupDetailsPage() {
         updateGroup,
         updateMemberRole,
         toggleMemberBan,
-        handleJoinRequest
+        handleJoinRequest,
+        deleteGroup
     } = useGroupDetails(groupId);
     const { joinGroup, leaveGroup } = useGroups();
     const { announcements, loading: loadingAnnouncements, createAnnouncement, updateAnnouncement, fetchAnnouncements } = useAnnouncements(groupId);
@@ -86,6 +87,16 @@ export default function GroupDetailsPage() {
             await updateGroup(updateData);
             // Refrescar los detalles del grupo después de guardar
             await fetchGroupDetails();
+        } catch (err) {
+            throw err;
+        }
+    };
+
+    const handleDeleteGroup = async () => {
+        try {
+            await deleteGroup();
+            // Redirigir a la página de comunidad después de eliminar
+            navigate('/community');
         } catch (err) {
             throw err;
         }
@@ -1117,6 +1128,8 @@ export default function GroupDetailsPage() {
                             group={group}
                             onSave={handleSaveGroupSettings}
                             onCancel={() => setActiveTab('forums')}
+                            onDelete={handleDeleteGroup}
+                            isOwner={isOwner}
                         />
                     </div>
                 )}

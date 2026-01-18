@@ -1,4 +1,5 @@
 import { groupService } from '../services/groupService.js';
+import { obtenerIPDesdeRequest } from '../utils/auditLogger.js';
 
 export const groupController = {
     // RG-001a - Crear grupo
@@ -6,8 +7,9 @@ export const groupController = {
         try {
             const userId = req.user.id;
             const groupData = req.body;
+            const ipAddress = obtenerIPDesdeRequest(req);
 
-            const grupo = await groupService.createGroup(userId, groupData);
+            const grupo = await groupService.createGroup(userId, groupData, ipAddress);
 
             res.status(201).json({
                 success: true,
@@ -29,8 +31,9 @@ export const groupController = {
             const userId = req.user.id;
             const { groupId } = req.params;
             const updateData = req.body;
+            const ipAddress = obtenerIPDesdeRequest(req);
 
-            const grupo = await groupService.updateGroup(userId, groupId, updateData);
+            const grupo = await groupService.updateGroup(userId, groupId, updateData, ipAddress);
 
             res.json({
                 success: true,
@@ -42,6 +45,28 @@ export const groupController = {
             res.status(400).json({
                 success: false,
                 message: error.message || 'Error al actualizar el grupo'
+            });
+        }
+    },
+
+    // RG-001d - Eliminar grupo (solo Owner)
+    async deleteGroup(req, res) {
+        try {
+            const userId = req.user.id;
+            const { groupId } = req.params;
+            const ipAddress = obtenerIPDesdeRequest(req);
+
+            await groupService.deleteGroup(userId, groupId, ipAddress);
+
+            res.json({
+                success: true,
+                message: 'Grupo eliminado exitosamente'
+            });
+        } catch (error) {
+            console.error('[COMMUNITY] Error deleting group:', error);
+            res.status(400).json({
+                success: false,
+                message: error.message || 'Error al eliminar el grupo'
             });
         }
     },

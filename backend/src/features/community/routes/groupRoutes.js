@@ -22,6 +22,9 @@ router.get('/:groupId', groupController.getGroupDetails);
 // Editar grupo
 router.put('/:groupId', groupController.updateGroup);
 
+// Eliminar grupo
+router.delete('/:groupId', groupController.deleteGroup);
+
 // Unirse a un grupo
 router.post('/:groupId/join', groupController.joinGroup);
 

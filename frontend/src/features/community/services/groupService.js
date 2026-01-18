@@ -69,6 +69,18 @@ export const groupService = {
         return data;
     },
 
+    // Eliminar grupo
+    async deleteGroup(groupId) {
+        const response = await fetch(`${API_URL}/groups/${groupId}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message);
+        return data;
+    },
+
     // Unirse a un grupo
     async joinGroup(groupId) {
         const response = await fetch(`${API_URL}/groups/${groupId}/join`, {

@@ -49,3 +49,4 @@ SteamWorks_indications.md
 .scannerwork/
 sonar-project.properties
 eslint.config.js
+eslint-report.html

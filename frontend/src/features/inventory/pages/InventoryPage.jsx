@@ -35,8 +35,12 @@ export const InventoryPage = () => {
   };
 
   // Cancelar un trade (intercambio) activo por su ID
-  const handleCancelTrade = (tradeId) => {
-    if (!confirm('¿Estás seguro de que deseas cancelar este intercambio? El ítem volverá a estar disponible.')) return;
+  const handleCancelTrade = async (tradeId) => {
+    const confirmed = await showConfirmDialog(
+      '¿Estás seguro de que deseas cancelar este intercambio? El ítem volverá a estar disponible.',
+      'Cancelar intercambio'
+    );
+    if (!confirmed) return;
     
     setIsSubmitting(true);
     cancelTradeById(tradeId)
@@ -62,30 +66,35 @@ export const InventoryPage = () => {
       setIsSubmitting(true);
       try {
           await inventoryService.sellItem(user.id, selectedItem, sellPrice);
-          alert('Item puesto a la venta correctamente');
+          showSuccessMessage('Item puesto a la venta correctamente');
           setShowSellModal(false);
           setSelectedItem(null);
           refetch();
       } catch (err) {
-          alert('Error al vender: ' + err.message);
+          showErrorMessage('Error al vender: ' + err.message);
       } finally {
           setIsSubmitting(false);
       }
   };
 
   const handleCancelSelling = async (listingId) => {
-      if (!confirm('¿Estás seguro de que deseas cancelar esta venta? El ítem volverá a tu inventario.')) return;
+      const confirmed = await showConfirmDialog(
+        '¿Estás seguro de que deseas cancelar esta venta? El ítem volverá a tu inventario.',
+        'Cancelar venta'
+      );
+      if (!confirmed) return;
       
       setIsSubmitting(true);
       try {
           // Nota: El servicio frontend espera un objeto { listingId } o solo el ID según la implementación
           // En inventoryService.js vi: async cancelListing(listingId)
           await inventoryService.cancelListing(listingId);
+          showSuccessMessage('Venta cancelada exitosamente. El ítem ha vuelto a tu inventario.');
           await refetch();
           setSelectedItem(null); 
       } catch (err) {
           console.error(err);
-          alert('Error al cancelar la venta: ' + err.message);
+          showErrorMessage('Error al cancelar la venta: ' + err.message);
       } finally {
           setIsSubmitting(false);
       }
@@ -316,6 +325,59 @@ export const InventoryPage = () => {
     modal.querySelector('.close-btn').addEventListener('click', cleanup);
     
     return closeModal;
+  };
+
+  // Función para mostrar diálogo de confirmación
+  const showConfirmDialog = (message, title = 'Confirmar acción') => {
+    return new Promise((resolve) => {
+      const modal = document.createElement('div');
+      modal.className = 'fixed inset-0 flex items-center justify-center z-[9999]';
+      
+      const overlay = document.createElement('div');
+      overlay.className = 'fixed inset-0 bg-black transition-opacity duration-300 opacity-60 z-[9998]';
+      
+      modal.innerHTML = `
+        <div class="relative z-[9999] bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-2xl transform transition-all duration-300 opacity-100 scale-100 translate-y-0">
+          <div class="flex flex-col items-center text-center">
+            <div class="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mb-4">
+              <svg class="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <h3 class="text-xl font-bold text-gray-800 mb-2">${title}</h3>
+            <p class="text-gray-600 mb-6 text-lg">${message}</p>
+            <div class="flex gap-3 w-full">
+              <button class="cancel-btn flex-1 px-4 py-3 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors duration-200 font-medium">
+                Cancelar
+              </button>
+              <button class="confirm-btn flex-1 px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors duration-200 font-medium">
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      modal.appendChild(overlay);
+      document.body.appendChild(modal);
+      
+      const closeModal = (result) => {
+        const content = modal.querySelector('div > div');
+        content.classList.add('opacity-0', 'scale-95', 'translate-y-2');
+        overlay.classList.add('opacity-0');
+        
+        setTimeout(() => {
+          if (modal.parentNode) {
+            modal.parentNode.removeChild(modal);
+          }
+          resolve(result);
+        }, 300);
+      };
+      
+      overlay.addEventListener('click', () => closeModal(false));
+      modal.querySelector('.cancel-btn').addEventListener('click', () => closeModal(false));
+      modal.querySelector('.confirm-btn').addEventListener('click', () => closeModal(true));
+    });
   };
 
   return (

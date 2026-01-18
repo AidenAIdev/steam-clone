@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { useDeveloperAuth } from '../hooks/useDeveloperAuth';
 import { NavbarSteamworks } from '../components/NavbarSteamworks';
 import { GestionLlavesPage } from '../../game-keys/pages/GestionLlavesPage';
+import { PricesPage } from '../../prices/pages/PricesPage';
 
 export const SteamworksDashboardPage = () => {
   const navigate = useNavigate();
@@ -69,6 +70,17 @@ export const SteamworksDashboardPage = () => {
                   </span>
                   <span className="text-gray-400 text-sm">
                     Genera y administra llaves de activación para tus juegos
+                  </span>
+                </button>
+                <button 
+                  onClick={() => setActiveTab('precios')}
+                  className="p-4 bg-[#2a3f5f] rounded border border-[#3d5a80] text-left hover:border-[#66c0f4] transition-colors"
+                >
+                  <span className="text-[#66c0f4] font-medium block mb-1">
+                    Precios
+                  </span>
+                  <span className="text-gray-400 text-sm">
+                    Edita los precios de tus aplicaciones y ofertas
                   </span>
                 </button>
                 <button className="p-4 bg-[#2a3f5f] rounded border border-[#3d5a80] text-left hover:border-[#66c0f4] transition-colors">
@@ -136,6 +148,13 @@ export const SteamworksDashboardPage = () => {
           </div>
         );
 
+      case 'precios':
+        return (
+          <div className="max-w-7xl mx-auto px-4 py-8">
+            <PricesPage mostrarHeader={false} />
+          </div>
+        );
+        
       case 'mi-perfil':
         return (
           <div className="p-8">

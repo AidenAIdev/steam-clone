@@ -60,6 +60,15 @@ router.put(
   newAppController.actualizarAplicacion
 );
 
+// PUT /api/new-app/:appId/etiquetas - Actualizar etiquetas de la aplicación
+router.put('/:appId/etiquetas', validarObtenerAplicacion, newAppController.actualizarEtiquetas);
+
+// PUT /api/new-app/:appId/precio - Actualizar precio de la aplicación
+router.put('/:appId/precio', validarObtenerAplicacion, newAppController.actualizarPrecio);
+
+// PUT /api/new-app/:appId/descripcion - Actualizar descripción larga de la aplicación
+router.put('/:appId/descripcion', validarObtenerAplicacion, newAppController.actualizarDescripcion);
+
 // POST /api/new-app/:appId/pagar - Procesar pago de registro
 router.post('/:appId/pagar', validarObtenerAplicacion, newAppController.procesarPago);
 

@@ -457,9 +457,153 @@ export const newAppService = {
   },
 
   /**
+   * UPDATE: Actualiza las etiquetas de una aplicación
+   *
+   * @param {string} appId - ID de la aplicación
+   * @param {string} desarrolladorId - UUID del desarrollador autenticado
+   * @param {Array<string>} etiquetas - Array de etiquetas
+   * @returns {Promise<Object>} - Aplicación actualizada
+   */
+  async actualizarEtiquetas(appId, desarrolladorId, etiquetas) {
+    try {
+      // 1. Verificar propiedad (C18)
+      await this.obtenerAplicacion(appId, desarrolladorId);
+
+      // 2. Validar etiquetas
+      if (!Array.isArray(etiquetas)) {
+        throw new Error('Las etiquetas deben ser un array');
+      }
+
+      if (etiquetas.length > 10) {
+        throw new Error('Máximo 10 etiquetas permitidas');
+      }
+
+      // Limpiar y validar cada etiqueta
+      const etiquetasLimpias = etiquetas
+        .map(e => e.toString().trim().toLowerCase())
+        .filter(e => e.length > 0 && e.length <= 30);
+
+      // 3. Actualizar en la base de datos
+      const { data: appActualizada, error } = await supabaseAdmin
+        .from('aplicaciones_desarrolladores')
+        .update({
+          etiquetas: etiquetasLimpias,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', appId)
+        .eq('desarrollador_id', desarrolladorId)
+        .select('*')
+        .single();
+
+      if (error) {
+        console.error('[NEW_APP] Error al actualizar etiquetas:', error);
+        throw new Error('Error al actualizar etiquetas');
+      }
+
+      return appActualizada;
+
+    } catch (error) {
+      console.error('[NEW_APP] Error en actualizarEtiquetas:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * UPDATE: Actualiza el precio base de una aplicación
+   *
+   * @param {string} appId - ID de la aplicación
+   * @param {string} desarrolladorId - UUID del desarrollador autenticado
+   * @param {number} precio - Precio en USD (0-1000)
+   * @returns {Promise<Object>} - Aplicación actualizada
+   */
+  async actualizarPrecio(appId, desarrolladorId, precio) {
+    try {
+      // 1. Verificar propiedad (C18)
+      await this.obtenerAplicacion(appId, desarrolladorId);
+
+      // 2. Validar precio
+      const precioNumerico = parseFloat(precio);
+
+      if (isNaN(precioNumerico) || precioNumerico < 0) {
+        throw new Error('El precio debe ser un número válido mayor o igual a 0');
+      }
+
+      if (precioNumerico > 1000) {
+        throw new Error('El precio máximo permitido es $1000 USD');
+      }
+
+      // 3. Actualizar en la base de datos
+      const { data: appActualizada, error } = await supabaseAdmin
+        .from('aplicaciones_desarrolladores')
+        .update({
+          precio_base_usd: precioNumerico,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', appId)
+        .eq('desarrollador_id', desarrolladorId)
+        .select('*')
+        .single();
+
+      if (error) {
+        console.error('[NEW_APP] Error al actualizar precio:', error);
+        throw new Error('Error al actualizar precio');
+      }
+
+      return appActualizada;
+
+    } catch (error) {
+      console.error('[NEW_APP] Error en actualizarPrecio:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * UPDATE: Actualiza la descripción larga de una aplicación
+   *
+   * @param {string} appId - ID de la aplicación
+   * @param {string} desarrolladorId - UUID del desarrollador autenticado
+   * @param {string} descripcionLarga - Nueva descripción larga
+   * @returns {Promise<Object>} - Aplicación actualizada
+   */
+  async actualizarDescripcionLarga(appId, desarrolladorId, descripcionLarga) {
+    try {
+      // 1. Verificar propiedad (C18)
+      await this.obtenerAplicacion(appId, desarrolladorId);
+
+      // 2. Validar descripción
+      if (descripcionLarga && descripcionLarga.length > 2000) {
+        throw new Error('La descripción no puede exceder los 2000 caracteres');
+      }
+
+      // 3. Actualizar en la base de datos
+      const { data: appActualizada, error } = await supabaseAdmin
+        .from('aplicaciones_desarrolladores')
+        .update({
+          descripcion_larga: descripcionLarga || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', appId)
+        .eq('desarrollador_id', desarrolladorId)
+        .select('*')
+        .single();
+
+      if (error) {
+        console.error('[NEW_APP] Error al actualizar descripción:', error);
+        throw new Error('Error al actualizar descripción');
+      }
+
+      return appActualizada;
+
+    } catch (error) {
+      console.error('[NEW_APP] Error en actualizarDescripcionLarga:', error);
+      throw error;
+    }
+  },
+
+  /**
    * Procesa el pago de registro de una aplicación
    * Actualiza pago_registro_completado = true
-   * 
+   *
    * @param {string} appId - ID de la aplicación
    * @param {string} desarrolladorId - UUID del desarrollador
    * @returns {Promise<Object>} - Aplicación con pago confirmado

@@ -227,6 +227,158 @@ export const newAppController = {
   },
 
   /**
+   * PUT /api/new-app/:appId/etiquetas
+   * Actualiza las etiquetas de una aplicación
+   */
+  async actualizarEtiquetas(req, res) {
+    try {
+      const { appId } = req.params;
+      const desarrolladorId = req.desarrollador.id;
+      const { etiquetas } = req.body;
+
+      if (!Array.isArray(etiquetas)) {
+        return res.status(400).json({
+          success: false,
+          mensaje: 'Las etiquetas deben ser un array'
+        });
+      }
+
+      const resultado = await newAppService.actualizarEtiquetas(
+        appId,
+        desarrolladorId,
+        etiquetas
+      );
+
+      return res.status(200).json({
+        success: true,
+        mensaje: 'Etiquetas actualizadas correctamente',
+        data: resultado
+      });
+
+    } catch (error) {
+      console.error('[CONTROLLER] Error en actualizarEtiquetas:', error);
+
+      if (error.message.includes('no encontrada') || error.message.includes('sin permisos')) {
+        return res.status(404).json({
+          success: false,
+          mensaje: error.message
+        });
+      }
+
+      if (error.message.includes('Máximo') || error.message.includes('array')) {
+        return res.status(400).json({
+          success: false,
+          mensaje: error.message
+        });
+      }
+
+      return res.status(500).json({
+        success: false,
+        mensaje: 'Error interno al actualizar etiquetas'
+      });
+    }
+  },
+
+  /**
+   * PUT /api/new-app/:appId/precio
+   * Actualiza el precio de una aplicación
+   */
+  async actualizarPrecio(req, res) {
+    try {
+      const { appId } = req.params;
+      const desarrolladorId = req.desarrollador.id;
+      const { precio_base_usd } = req.body;
+
+      if (precio_base_usd === undefined || precio_base_usd === null) {
+        return res.status(400).json({
+          success: false,
+          mensaje: 'El precio es requerido'
+        });
+      }
+
+      const resultado = await newAppService.actualizarPrecio(
+        appId,
+        desarrolladorId,
+        precio_base_usd
+      );
+
+      return res.status(200).json({
+        success: true,
+        mensaje: 'Precio actualizado correctamente',
+        data: resultado
+      });
+
+    } catch (error) {
+      console.error('[CONTROLLER] Error en actualizarPrecio:', error);
+
+      if (error.message.includes('no encontrada') || error.message.includes('sin permisos')) {
+        return res.status(404).json({
+          success: false,
+          mensaje: error.message
+        });
+      }
+
+      if (error.message.includes('válido') || error.message.includes('máximo')) {
+        return res.status(400).json({
+          success: false,
+          mensaje: error.message
+        });
+      }
+
+      return res.status(500).json({
+        success: false,
+        mensaje: 'Error interno al actualizar precio'
+      });
+    }
+  },
+
+  /**
+   * PUT /api/new-app/:appId/descripcion
+   * Actualiza la descripción larga de una aplicación
+   */
+  async actualizarDescripcion(req, res) {
+    try {
+      const { appId } = req.params;
+      const desarrolladorId = req.desarrollador.id;
+      const { descripcion_larga } = req.body;
+
+      const resultado = await newAppService.actualizarDescripcionLarga(
+        appId,
+        desarrolladorId,
+        descripcion_larga
+      );
+
+      return res.status(200).json({
+        success: true,
+        mensaje: 'Descripción actualizada correctamente',
+        data: resultado
+      });
+
+    } catch (error) {
+      console.error('[CONTROLLER] Error en actualizarDescripcion:', error);
+
+      if (error.message.includes('no encontrada') || error.message.includes('sin permisos')) {
+        return res.status(404).json({
+          success: false,
+          mensaje: error.message
+        });
+      }
+
+      if (error.message.includes('exceder')) {
+        return res.status(400).json({
+          success: false,
+          mensaje: error.message
+        });
+      }
+
+      return res.status(500).json({
+        success: false,
+        mensaje: 'Error interno al actualizar descripción'
+      });
+    }
+  },
+
+  /**
    * POST /api/new-app/:appId/pagar
    * Procesa el pago de registro de una aplicación
    */

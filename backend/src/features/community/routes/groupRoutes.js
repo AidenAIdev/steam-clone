@@ -40,7 +40,10 @@ router.post('/:groupId/members/:memberId/ban', groupController.banMember);
 // Invitar usuario
 router.post('/:groupId/invite', groupController.inviteUser);
 
-// Gestionar solicitudes de unión
+// Obtener solicitudes de unión pendientes
+router.get('/:groupId/requests', groupController.getPendingRequests);
+
+// Gestionar solicitudes de unión (aprobar/rechazar)
 router.post('/:groupId/requests/:requestId', groupController.handleJoinRequest);
 
 export default router;

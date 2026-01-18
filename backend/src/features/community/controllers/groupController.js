@@ -260,5 +260,26 @@ export const groupController = {
                 message: 'Error al buscar grupos'
             });
         }
+    },
+
+    // Obtener solicitudes pendientes de un grupo
+    async getPendingRequests(req, res) {
+        try {
+            const userId = req.user.id;
+            const { groupId } = req.params;
+
+            const requests = await groupService.getPendingRequests(userId, groupId);
+
+            res.json({
+                success: true,
+                data: requests
+            });
+        } catch (error) {
+            console.error('[COMMUNITY] Error getting pending requests:', error);
+            res.status(400).json({
+                success: false,
+                message: error.message || 'Error al obtener las solicitudes'
+            });
+        }
     }
 };

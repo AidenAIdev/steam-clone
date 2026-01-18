@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Users, MessageSquare, Settings, Megaphone, Shield, Plus, Gamepad2, Pin, PinOff, AlertTriangle, Ban, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, Users, MessageSquare, Settings, Megaphone, Shield, Plus, Gamepad2, Pin, PinOff, AlertTriangle, Ban, CheckCircle, XCircle, ChevronDown, ChevronUp, UserPlus } from 'lucide-react';
 import { useGroupDetails, useGroups } from '../hooks/useGroups';
 import { useAnnouncements, useReports } from '../hooks/useCommunity';
 import { useAuth } from '../../auth/hooks/useAuth';
@@ -29,16 +29,23 @@ export default function GroupDetailsPage() {
     const [isBanModalOpen, setIsBanModalOpen] = useState(false);
     const [selectedReport, setSelectedReport] = useState(null);
     const [searchMember, setSearchMember] = useState('');
+    const [isOwnerSectionExpanded, setIsOwnerSectionExpanded] = useState(true);
+    const [isModeratorsExpanded, setIsModeratorsExpanded] = useState(true);
+    const [isMembersExpanded, setIsMembersExpanded] = useState(true);
+    const [isRequestsExpanded, setIsRequestsExpanded] = useState(true);
     const { 
         group, 
         members, 
+        pendingRequests,
         loading, 
         error, 
         fetchGroupDetails, 
         fetchMembers,
+        fetchPendingRequests,
         updateGroup,
         updateMemberRole,
-        toggleMemberBan
+        toggleMemberBan,
+        handleJoinRequest
     } = useGroupDetails(groupId);
     const { joinGroup, leaveGroup } = useGroups();
     const { announcements, loading: loadingAnnouncements, createAnnouncement, updateAnnouncement, fetchAnnouncements } = useAnnouncements(groupId);
@@ -47,10 +54,11 @@ export default function GroupDetailsPage() {
     useEffect(() => {
         fetchGroupDetails();
         fetchMembers();
+        fetchPendingRequests();
         fetchAnnouncements();
         fetchReports();
         loadForums();
-    }, [fetchGroupDetails, fetchMembers, fetchAnnouncements, fetchReports]);
+    }, [fetchGroupDetails, fetchMembers, fetchPendingRequests, fetchAnnouncements, fetchReports]);
 
     const loadForums = async () => {
         try {
@@ -561,10 +569,17 @@ export default function GroupDetailsPage() {
                         {/* Dueño - Solo visible para moderadores y dueños */}
                         {isModerator && members.filter(m => m.rol === 'Owner' && (!searchMember || m.profiles?.username?.toLowerCase().includes(searchMember.toLowerCase()))).length > 0 && (
                             <div>
-                                <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
-                                    <Shield className="text-yellow-400" size={20} />
-                                    Dueño
-                                </h3>
+                                <button
+                                    onClick={() => setIsOwnerSectionExpanded(!isOwnerSectionExpanded)}
+                                    className="w-full text-lg font-semibold text-white mb-3 flex items-center justify-between hover:text-blue-400 transition-colors"
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <Shield className="text-yellow-400" size={20} />
+                                        Dueño
+                                    </div>
+                                    {isOwnerSectionExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                                </button>
+                                {isOwnerSectionExpanded && (
                                 <div className="bg-[#2a475e] rounded-lg overflow-hidden">
                                     <div className="divide-y divide-[#1b2838]">
                                         {members.filter(m => m.rol === 'Owner' && (!searchMember || m.profiles?.username?.toLowerCase().includes(searchMember.toLowerCase()))).map((member) => (
@@ -600,16 +615,24 @@ export default function GroupDetailsPage() {
                                         ))}
                                     </div>
                                 </div>
+                                )}
                             </div>
                         )}
 
                         {/* Moderadores - Solo visible para moderadores y dueños */}
                         {isModerator && members.filter(m => m.rol === 'Moderator' && (!searchMember || m.profiles?.username?.toLowerCase().includes(searchMember.toLowerCase()))).length > 0 && (
                             <div>
-                                <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
-                                    <Shield className="text-blue-400" size={20} />
-                                    Moderadores ({members.filter(m => m.rol === 'Moderator' && (!searchMember || m.profiles?.username?.toLowerCase().includes(searchMember.toLowerCase()))).length})
-                                </h3>
+                                <button
+                                    onClick={() => setIsModeratorsExpanded(!isModeratorsExpanded)}
+                                    className="w-full text-lg font-semibold text-white mb-3 flex items-center justify-between hover:text-blue-400 transition-colors"
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <Shield className="text-blue-400" size={20} />
+                                        Moderadores ({members.filter(m => m.rol === 'Moderator' && (!searchMember || m.profiles?.username?.toLowerCase().includes(searchMember.toLowerCase()))).length})
+                                    </div>
+                                    {isModeratorsExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                                </button>
+                                {isModeratorsExpanded && (
                                 <div className="bg-[#2a475e] rounded-lg overflow-hidden">
                                     <div className="divide-y divide-[#1b2838]">
                                         {members.filter(m => m.rol === 'Moderator' && (!searchMember || m.profiles?.username?.toLowerCase().includes(searchMember.toLowerCase()))).map((member) => (
@@ -656,16 +679,24 @@ export default function GroupDetailsPage() {
                                         ))}
                                     </div>
                                 </div>
+                                )}
                             </div>
                         )}
 
                         {/* Miembros - Visible para todos */}
                         {members.filter(m => m.rol === 'Member' && (!searchMember || m.profiles?.username?.toLowerCase().includes(searchMember.toLowerCase()))).length > 0 && (
                             <div>
-                                <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
-                                    <Users className="text-gray-400" size={20} />
-                                    Miembros ({members.filter(m => m.rol === 'Member' && (!searchMember || m.profiles?.username?.toLowerCase().includes(searchMember.toLowerCase()))).length})
-                                </h3>
+                                <button
+                                    onClick={() => setIsMembersExpanded(!isMembersExpanded)}
+                                    className="w-full text-lg font-semibold text-white mb-3 flex items-center justify-between hover:text-blue-400 transition-colors"
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <Users className="text-gray-400" size={20} />
+                                        Miembros ({members.filter(m => m.rol === 'Member' && (!searchMember || m.profiles?.username?.toLowerCase().includes(searchMember.toLowerCase()))).length})
+                                    </div>
+                                    {isMembersExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                                </button>
+                                {isMembersExpanded && (
                                 <div className="bg-[#2a475e] rounded-lg overflow-hidden">
                                     <div className="divide-y divide-[#1b2838]">
                                         {members.filter(m => m.rol === 'Member' && (!searchMember || m.profiles?.username?.toLowerCase().includes(searchMember.toLowerCase()))).map((member) => (
@@ -712,6 +743,66 @@ export default function GroupDetailsPage() {
                                         ))}
                                     </div>
                                 </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Solicitudes - Solo visible para Dueño/Moderadores en grupos Restricted o Closed */}
+                        {isModerator && (group.tipo_privacidad === 'Restricted' || group.tipo_privacidad === 'Closed') && pendingRequests && pendingRequests.length > 0 && (
+                            <div>
+                                <button
+                                    onClick={() => setIsRequestsExpanded(!isRequestsExpanded)}
+                                    className="w-full text-lg font-semibold text-white mb-3 flex items-center justify-between hover:text-blue-400 transition-colors"
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <UserPlus className="text-green-400" size={20} />
+                                        Solicitudes de Unión ({pendingRequests.length})
+                                    </div>
+                                    {isRequestsExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                                </button>
+                                {isRequestsExpanded && (
+                                <div className="bg-[#2a475e] rounded-lg overflow-hidden">
+                                    <div className="divide-y divide-[#1b2838]">
+                                        {pendingRequests.map((request) => (
+                                            <div key={request.id} className="p-4 flex items-center justify-between hover:bg-[#3a576e] transition-colors">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-12 h-12 bg-[#1b2838] rounded-full flex items-center justify-center">
+                                                        <span className="text-white font-semibold text-lg">
+                                                            {request.profiles?.username?.[0]?.toUpperCase() || 'U'}
+                                                        </span>
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-semibold text-white">
+                                                            {request.profiles?.username || 'Usuario'}
+                                                        </p>
+                                                        <p className="text-sm text-gray-400">
+                                                            Solicitud enviada el {new Date(request.fecha_solicitud).toLocaleDateString('es-ES')}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        onClick={() => handleJoinRequest(request.id, true)}
+                                                        className="px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded transition-colors font-semibold flex items-center gap-1"
+                                                        title="Aprobar solicitud"
+                                                    >
+                                                        <CheckCircle size={16} />
+                                                        Aprobar
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleJoinRequest(request.id, false)}
+                                                        className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded transition-colors font-semibold flex items-center gap-1"
+                                                        title="Rechazar solicitud"
+                                                    >
+                                                        <XCircle size={16} />
+                                                        Rechazar
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                                )}
                             </div>
                         )}
                     </div>

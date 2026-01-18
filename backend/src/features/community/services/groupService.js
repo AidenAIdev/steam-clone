@@ -495,6 +495,53 @@ export const groupService = {
     },
 
     /**
+     * Obtener solicitudes de unión pendientes (Owner y Moderator)
+     */
+    async getPendingRequests(userId, groupId) {
+        // Verificar permisos (solo Owner y Moderator pueden ver solicitudes)
+        const { data: member, error: memberError } = await supabase
+            .from('miembros_grupo')
+            .select('rol')
+            .eq('id_grupo', groupId)
+            .eq('id_perfil', userId)
+            .eq('estado_membresia', 'activo')
+            .is('deleted_at', null)
+            .single();
+
+        if (memberError || !member) {
+            throw new Error('No eres miembro de este grupo');
+        }
+
+        if (member.rol !== 'Owner' && member.rol !== 'Moderator') {
+            throw new Error('No tienes permisos para ver solicitudes');
+        }
+
+        // Obtener solicitudes pendientes
+        const { data: requests, error: requestsError } = await supabase
+            .from('invitaciones_solicitudes')
+            .select(`
+                id,
+                id_usuario_origen,
+                fecha_solicitud: created_at,
+                profiles:id_usuario_origen (
+                    id,
+                    username
+                )
+            `)
+            .eq('id_grupo', groupId)
+            .eq('tipo', 'solicitud')
+            .eq('estado', 'pendiente')
+            .order('created_at', { ascending: false });
+
+        if (requestsError) {
+            console.error('Error getting pending requests:', requestsError);
+            throw new Error('Error al obtener las solicitudes');
+        }
+
+        return requests || [];
+    },
+
+    /**
      * Aprobar/rechazar solicitud de unión (Owner y Moderator)
      */
     async handleJoinRequest(requesterId, groupId, requestId, approve) {

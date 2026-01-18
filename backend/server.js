@@ -24,6 +24,9 @@ import mfaRoutes from './src/features/mfa/routes/mfaRoutes.js';
 // Import game keys routes (Grupo 2 - Gestión de Llaves)
 import { gameKeysRoutes } from './src/features/game-keys/index.js';
 
+// Import pricing routes (Grupo 2 - Gestión de Precios RF-010)
+import pricingRoutes from './src/features/pricing/routes/pricesRoutes.js';
+
 // Import security middleware (Grupo 2 - Seguridad)
 import { securityHeaders, additionalSecurityHeaders } from './src/shared/middleware/securityHeaders.js';
 import { apiLimiter, criticalRateLimiter } from './src/shared/middleware/rateLimiter.js';
@@ -75,6 +78,10 @@ app.use('/api/desarrolladores/auth', apiLimiter, developerAuthRoutes);
 
 // Game Keys routes (Santiago - Gestión de Llaves de Juego)
 app.use('/api/game-keys', gameKeysRoutes);
+
+// Pricing routes (Grupo 2 - Gestión de Precios RF-010)
+app.use('/api/pricing', apiLimiter, pricingRoutes);
+
 // Admin routes
 app.use('/api/admin', apiLimiter, adminRoutes);
 

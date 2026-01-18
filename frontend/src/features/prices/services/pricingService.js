@@ -1,33 +1,108 @@
-export const MOCK_APPS = [
-  {
-    id: '1',
-    nombre_juego: 'Juego Demo 1',
-    precio_base_usd: 19.99,
-    estado_revision: 'aprobado',
-    updated_at: new Date(Date.now() - 86400000 * 40).toISOString(),
-    discount: 0.25 
-  },
-  {
-    id: '2',
-    nombre_juego: 'Juego Demo 2',
-    precio_base_usd: 9.99,
-    estado_revision: 'publicado',
-    updated_at: new Date(Date.now() - 86400000 * 40).toISOString(),
-    discount: 0.5 
+/**
+ * Pricing Service - Conecta con el backend de pricing
+ * Implementa RF-010 (Definición de Precios)
+ */
+
+// Usa el proxy de Vite - las peticiones a /api se redirigen a localhost:3000
+const API_URL = '/api';
+
+/**
+ * Obtiene las aplicaciones del desarrollador autenticado
+ * GET /api/pricing/my-apps
+ */
+export async function fetchMyApps() {
+  const response = await fetch(`${API_URL}/pricing/my-apps`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  });
+
+  const data = await response.json();
+  
+  if (!response.ok) {
+    throw new Error(data.mensaje || data.error || 'Error al obtener aplicaciones');
   }
-];
 
-export async function fetchMyApps(token) {
-  // Siempre retorna el mock como si fuera el backend
-  return Promise.resolve(MOCK_APPS);
+  return data.apps || [];
 }
 
-export async function updateAppPrice(token, appId, price, mfaCode) {
-  // Simula actualización exitosa
-  return Promise.resolve({ appId, newPrice: price, success: true });
+/**
+ * Obtiene detalles de una aplicación específica
+ * GET /api/pricing/app/:appId
+ */
+export async function fetchAppDetails(appId) {
+  const response = await fetch(`${API_URL}/pricing/app/${appId}`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  });
+
+  const data = await response.json();
+  
+  if (!response.ok) {
+    throw new Error(data.mensaje || data.error || 'Error al obtener detalles de la aplicación');
+  }
+
+  return data.app;
 }
 
-export async function updateAppDiscount(token, appId, discount, mfaCode) {
-    // Simula actualización exitosa
-    return Promise.resolve({ appId, newDiscount: discount, success: true });
+/**
+ * Actualiza el precio de una aplicación
+ * PUT /api/pricing/update-price
+ * 
+ * @param {string} appId - ID de la aplicación
+ * @param {number} newPrice - Nuevo precio (0-1000 USD)
+ * @param {string} mfaCode - Código MFA para verificación
+ */
+export async function updateAppPrice(appId, newPrice, mfaCode) {
+  const response = await fetch(`${API_URL}/pricing/update-price`, {
+    method: 'PUT',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-MFA-Code': mfaCode
+    },
+    body: JSON.stringify({ appId, newPrice: Number(newPrice) })
+  });
+
+  const data = await response.json();
+  
+  if (!response.ok) {
+    throw new Error(data.mensaje || data.error || 'Error al actualizar precio');
+  }
+
+  return data;
 }
+
+/**
+ * Actualiza el descuento de una aplicación
+ * PUT /api/pricing/update-discount
+ * 
+ * @param {string} appId - ID de la aplicación
+ * @param {number} newDiscount - Nuevo descuento (0-1, ej: 0.25 = 25%)
+ * @param {string} mfaCode - Código MFA para verificación
+ */
+export async function updateAppDiscount(appId, newDiscount, mfaCode) {
+  const response = await fetch(`${API_URL}/pricing/update-discount`, {
+    method: 'PUT',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-MFA-Code': mfaCode
+    },
+    body: JSON.stringify({ appId, newDiscount: Number(newDiscount) })
+  });
+
+  const data = await response.json();
+  
+  if (!response.ok) {
+    throw new Error(data.mensaje || data.error || 'Error al actualizar descuento');
+  }
+
+  return data;
+}
+

@@ -12,6 +12,7 @@ export const PRICE_CONFIG = {
 // Constantes de límites de marketplace
 export const MARKETPLACE_LIMITS = {
   MAX_ACTIVE_LISTINGS: 10,
+  DAILY_PURCHASE_LIMIT: 2000, // Límite diario de compra en USD
 };
 
 /**

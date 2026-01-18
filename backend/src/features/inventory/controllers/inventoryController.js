@@ -1,5 +1,6 @@
 import { inventoryService } from '../services/inventoryService.js';
 import { validatePrice, isValidUUID, MARKETPLACE_LIMITS } from '../config/priceConfig.js';
+import { supabaseAdmin as supabase } from '../../../shared/config/supabase.js';
 
 export const inventoryController = {
     /**
@@ -136,6 +137,29 @@ export const inventoryController = {
     },
 
     /**
+     * Obtener estado del límite diario de compras
+     */
+    async getDailyPurchaseStatus(req, res) {
+        try {
+            const userId = req.user.id;
+            const dailyTotal = await inventoryService.getDailyPurchaseTotal(userId);
+            const remaining = Math.max(0, MARKETPLACE_LIMITS.DAILY_PURCHASE_LIMIT - dailyTotal);
+
+            res.json({
+                success: true,
+                data: {
+                    dailyTotal: dailyTotal,
+                    dailyLimit: MARKETPLACE_LIMITS.DAILY_PURCHASE_LIMIT,
+                    remaining: remaining,
+                    limitReached: dailyTotal >= MARKETPLACE_LIMITS.DAILY_PURCHASE_LIMIT
+                }
+            });
+        } catch (error) {
+            res.status(500).json({ success: false, message: error.message });
+        }
+    },
+
+    /**
      * Obtener trades activos
      */
     async getActiveTrades(req, res) {
@@ -150,6 +174,7 @@ export const inventoryController = {
     /**
      * Comprar un item del marketplace
      * IMPORTANTE: El precio NO se recibe del cliente, se obtiene de la DB
+     * Valida límite diario de compra
      */
     async purchaseItem(req, res) {
         try {
@@ -165,11 +190,45 @@ export const inventoryController = {
             }
 
             // Validar formato UUID básico (prevenir inyección)
-            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-            if (!uuidRegex.test(listingId)) {
+            if (!isValidUUID(listingId)) {
                 return res.status(400).json({ 
                     success: false, 
                     message: 'Formato de ID inválido' 
+                });
+            }
+
+            // Obtener el precio del item ANTES de verificar límite
+            const { data: listing, error: listingError } = await supabase
+                .from('marketplace_listings')
+                .select('price')
+                .eq('id', listingId)
+                .eq('status', 'Active')
+                .single();
+
+            if (listingError || !listing) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Artículo no encontrado o ya no está disponible'
+                });
+            }
+
+            // Verificar límite diario de compra
+            const dailyTotal = await inventoryService.getDailyPurchaseTotal(buyerId);
+            const itemPrice = listing.price;
+            const newTotal = dailyTotal + itemPrice;
+
+            if (newTotal > MARKETPLACE_LIMITS.DAILY_PURCHASE_LIMIT) {
+                const remaining = Math.max(0, MARKETPLACE_LIMITS.DAILY_PURCHASE_LIMIT - dailyTotal);
+                return res.status(400).json({
+                    success: false,
+                    code: 'DAILY_LIMIT_EXCEEDED',
+                    message: `Has alcanzado el límite diario de compra de $${MARKETPLACE_LIMITS.DAILY_PURCHASE_LIMIT.toLocaleString()}. ` +
+                             `Hoy has gastado $${dailyTotal.toFixed(2)}. ` +
+                             (remaining > 0 ? `Solo puedes gastar $${remaining.toFixed(2)} más hoy.` : 'Intenta mañana.'),
+                    dailyTotal: dailyTotal,
+                    dailyLimit: MARKETPLACE_LIMITS.DAILY_PURCHASE_LIMIT,
+                    remaining: remaining,
+                    itemPrice: itemPrice
                 });
             }
 

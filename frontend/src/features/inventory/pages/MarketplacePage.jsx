@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ShoppingCart, Repeat, Search, DollarSign, Filter, Package, X, ArrowLeft, Inbox, Check, Info, Send, Loader2, User, Tag, AlertTriangle, Edit2, Save } from 'lucide-react';
+import { ShoppingCart, Repeat, Search, DollarSign, Filter, Package, X, ArrowLeft, Inbox, Check, Info, Send, Loader2, User, Tag, AlertTriangle, Edit2, Save, Clock } from 'lucide-react';
 import { inventoryService } from '../services/inventoryService';
 import { useAuth } from '../../../shared/context/AuthContext';
 import { useInventory } from '../hooks/useInventory';
@@ -18,6 +18,14 @@ export const MarketplacePage = () => {
   const [marketItems, setMarketItems] = useState([]);
   const [trades, setTrades] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Estado para límite diario de compras
+  const [dailyPurchaseStatus, setDailyPurchaseStatus] = useState({
+    dailyTotal: 0,
+    dailyLimit: MARKETPLACE_LIMITS.DAILY_PURCHASE_LIMIT,
+    remaining: MARKETPLACE_LIMITS.DAILY_PURCHASE_LIMIT,
+    limitReached: false
+  });
 
   // Filtrar items propios y de otros
   const myMarketListings = marketItems.filter(item => item.seller_id === user?.id);
@@ -46,6 +54,22 @@ export const MarketplacePage = () => {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Cargar estado del límite diario cuando hay usuario
+  useEffect(() => {
+    if (user) {
+      fetchDailyPurchaseStatus();
+    }
+  }, [user]);
+
+  const fetchDailyPurchaseStatus = async () => {
+    try {
+      const status = await inventoryService.getDailyPurchaseStatus();
+      setDailyPurchaseStatus(status);
+    } catch (error) {
+      console.error("Error fetching daily purchase status:", error);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -114,12 +138,21 @@ export const MarketplacePage = () => {
       fetchData(); // Recargar marketplace
       refetch(); // Recargar inventario
       fetchBalance(); // Recargar balance del wallet
+      fetchDailyPurchaseStatus(); // Actualizar estado del límite diario
       
     } catch (error) {
       console.error('Error en la compra:', error);
       
       // Mensajes de error específicos
-      if (error.message.includes('Fondos insuficientes')) {
+      if (error.message.includes('límite diario') || error.message.includes('DAILY_LIMIT')) {
+        // Extraer información del error si está disponible
+        const remaining = error.remaining || (dailyPurchaseStatus.dailyLimit - dailyPurchaseStatus.dailyTotal);
+        showErrorMessage(
+          `Has alcanzado tu límite diario de compras ($${dailyPurchaseStatus.dailyLimit.toFixed(2)}). ` +
+          `Te quedan $${remaining.toFixed(2)} disponibles para hoy.`
+        );
+        fetchDailyPurchaseStatus(); // Actualizar el estado del límite
+      } else if (error.message.includes('Fondos insuficientes')) {
         showErrorMessage(error.message);
       } else if (error.message.includes('ya fue vendido') || error.message.includes('no está disponible')) {
         showErrorMessage('Este artículo ya no está disponible');
@@ -141,9 +174,10 @@ export const MarketplacePage = () => {
 
     try {
       await inventoryService.cancelListing(listingId);
-      // Eliminar de la lista local
-      setMarketItems(prevItems => prevItems.filter(i => i.id !== listingId));
       showSuccessMessage("Venta cancelada exitosamente. El item ha vuelto a tu inventario.");
+      // Refrescar datos del marketplace y el inventario
+      fetchData();
+      refetch();
     } catch (error) {
       console.error("Error cancelling listing:", error);
       showErrorMessage("Error al cancelar la venta: " + error.message);
@@ -192,17 +226,10 @@ export const MarketplacePage = () => {
     try {
       const result = await inventoryService.updateListingPrice(listingId, priceValidation.price);
       
-      // Actualizar lista local
-      setMarketItems(prevItems => 
-        prevItems.map(item => 
-          item.id === listingId 
-            ? { ...item, price: priceValidation.price }
-            : item
-        )
-      );
-      
       handleCancelEditPrice();
       showSuccessMessage(`Precio actualizado a $${priceValidation.price.toFixed(2)}`);
+      // Refrescar datos del marketplace para mantener consistencia
+      fetchData();
     } catch (error) {
       console.error("Error updating price:", error);
       showErrorMessage(error.message || "Error al actualizar el precio");
@@ -240,10 +267,11 @@ export const MarketplacePage = () => {
     try {
       const result = await inventoryService.sellItem(user.id, selectedSellItem, priceValidation.price);
       if (result.success) {
-        // Actualizar lista local
-        setMarketItems([result.listing, ...marketItems]);
         setShowSellModal(false);
         showSuccessMessage(`Has puesto a la venta "${selectedSellItem.name || selectedSellItem.title}" por $${priceValidation.price.toFixed(2)}.`);
+        // Refrescar datos del marketplace para que el item aparezca en la sección correcta
+        fetchData();
+        refetch(); // Refrescar inventario
       }
     } catch (error) {
       console.error("Error selling item:", error);
@@ -572,6 +600,84 @@ export const MarketplacePage = () => {
             {/* Market Section - Solo items de OTROS usuarios */}
             {activeTab === 'market' && (
               <div className="space-y-6">
+                {/* Banner de Límite Diario de Compras */}
+                {user && (
+                  <div className={`p-4 rounded-xl border ${
+                    dailyPurchaseStatus.limitReached 
+                      ? 'bg-red-900/30 border-red-700' 
+                      : dailyPurchaseStatus.remaining < 500 
+                        ? 'bg-yellow-900/30 border-yellow-700' 
+                        : 'bg-[#16202d] border-[#2a475e]'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-lg ${
+                          dailyPurchaseStatus.limitReached 
+                            ? 'bg-red-800' 
+                            : dailyPurchaseStatus.remaining < 500 
+                              ? 'bg-yellow-800' 
+                              : 'bg-[#2a475e]'
+                        }`}>
+                          <Clock className={`w-5 h-5 ${
+                            dailyPurchaseStatus.limitReached 
+                              ? 'text-red-400' 
+                              : dailyPurchaseStatus.remaining < 500 
+                                ? 'text-yellow-400' 
+                                : 'text-blue-400'
+                          }`} />
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-400">Límite diario de compras</p>
+                          <div className="flex items-center gap-2">
+                            <span className={`font-bold ${
+                              dailyPurchaseStatus.limitReached 
+                                ? 'text-red-400' 
+                                : dailyPurchaseStatus.remaining < 500 
+                                  ? 'text-yellow-400' 
+                                  : 'text-white'
+                            }`}>
+                              ${dailyPurchaseStatus.dailyTotal.toFixed(2)}
+                            </span>
+                            <span className="text-gray-500">/</span>
+                            <span className="text-gray-400">${dailyPurchaseStatus.dailyLimit.toFixed(2)}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-gray-400">Disponible hoy</p>
+                        <p className={`font-bold ${
+                          dailyPurchaseStatus.limitReached 
+                            ? 'text-red-400' 
+                            : dailyPurchaseStatus.remaining < 500 
+                              ? 'text-yellow-400' 
+                              : 'text-green-400'
+                        }`}>
+                          ${dailyPurchaseStatus.remaining.toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
+                    {/* Barra de progreso */}
+                    <div className="mt-3 h-2 bg-gray-700 rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full transition-all duration-300 ${
+                          dailyPurchaseStatus.limitReached 
+                            ? 'bg-red-500' 
+                            : dailyPurchaseStatus.remaining < 500 
+                              ? 'bg-yellow-500' 
+                              : 'bg-blue-500'
+                        }`}
+                        style={{ width: `${Math.min(100, (dailyPurchaseStatus.dailyTotal / dailyPurchaseStatus.dailyLimit) * 100)}%` }}
+                      />
+                    </div>
+                    {dailyPurchaseStatus.limitReached && (
+                      <p className="text-xs text-red-400 mt-2 flex items-center gap-1">
+                        <AlertTriangle size={12} />
+                        Has alcanzado tu límite de compras por hoy. Se reinicia a medianoche.
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 <div className="bg-[#16202d] p-6 rounded-xl border border-[#2a475e]">
                   <div className="flex justify-between items-center mb-6">
                     <h2 className="text-xl font-bold">Items Disponibles para Comprar</h2>
@@ -597,7 +703,12 @@ export const MarketplacePage = () => {
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                      {otherMarketListings.map((item) => (
+                      {otherMarketListings.map((item) => {
+                        const itemPrice = typeof item.price === 'number' ? item.price : parseFloat(item.price);
+                        const exceedsLimit = itemPrice > dailyPurchaseStatus.remaining;
+                        const limitReached = dailyPurchaseStatus.limitReached;
+                        
+                        return (
                         <div key={item.id} className="bg-[#1b2838] border border-gray-700 p-4 rounded-lg hover:border-blue-500 transition cursor-pointer group">
                           <div className="h-32 bg-gradient-to-br from-gray-700 to-gray-800 rounded-md mb-3 flex items-center justify-center">
                               <Package className="text-gray-500 group-hover:text-blue-400 transition" size={48} />
@@ -606,22 +717,33 @@ export const MarketplacePage = () => {
                           <p className="text-xs text-gray-400 mb-2">{item.game || "Steam"}</p>
                           <div className="flex justify-between items-center mt-3">
                             <span className="text-green-400 font-bold text-lg">
-                              ${typeof item.price === 'number' ? item.price.toFixed(2) : parseFloat(item.price).toFixed(2)}
+                              ${itemPrice.toFixed(2)}
                             </span>
                             
                             <button 
                               onClick={() => handleBuyItem(item)}
-                              disabled={!user}
-                              className="bg-green-600 hover:bg-green-500 px-3 py-1 rounded text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
+                              disabled={!user || limitReached || exceedsLimit}
+                              title={limitReached ? 'Límite diario alcanzado' : exceedsLimit ? `Este item excede tu límite restante ($${dailyPurchaseStatus.remaining.toFixed(2)})` : ''}
+                              className={`px-3 py-1 rounded text-sm font-medium transition disabled:cursor-not-allowed ${
+                                limitReached || exceedsLimit
+                                  ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                                  : 'bg-green-600 hover:bg-green-500'
+                              }`}
                             >
-                              Comprar
+                              {limitReached ? 'Límite' : exceedsLimit ? 'Excede límite' : 'Comprar'}
                             </button>
                           </div>
+                          {exceedsLimit && !limitReached && (
+                            <p className="text-xs text-yellow-500 mt-1 flex items-center gap-1">
+                              <AlertTriangle size={10} />
+                              Excede tu límite disponible
+                            </p>
+                          )}
                           <div className="text-xs text-gray-500 mt-2 text-right">
                             Vendedor: {item.seller}
                           </div>
                         </div>
-                      ))}
+                      )})}
                     </div>
                   )}
                 </div>
@@ -909,9 +1031,6 @@ export const MarketplacePage = () => {
                         return (
                           <div key={item.id} className="bg-[#1b2838] border border-yellow-500/30 p-4 rounded-lg relative group">
                             {/* Badge de propiedad */}
-                            <div className="absolute top-2 left-2 bg-yellow-500 text-black text-xs px-2 py-0.5 rounded font-bold">
-                              TU ARTÍCULO
-                            </div>
                             
                             <div className="h-32 bg-gradient-to-br from-gray-700 to-gray-800 rounded-md mb-3 flex items-center justify-center">
                               <Package className="text-yellow-400" size={48} />
@@ -1434,6 +1553,33 @@ export const MarketplacePage = () => {
                 </div>
               </div>
 
+              {/* Daily Limit Info */}
+              <div className={`rounded-lg p-3 mb-4 ${
+                (typeof selectedPurchaseItem.price === 'number' ? selectedPurchaseItem.price : parseFloat(selectedPurchaseItem.price)) > dailyPurchaseStatus.remaining
+                  ? 'bg-red-500/10 border border-red-500/30'
+                  : 'bg-[#16202d] border border-[#2a475e]'
+              }`}>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-400 flex items-center gap-1">
+                    <Clock size={14} />
+                    Límite diario restante
+                  </span>
+                  <span className={`font-medium ${
+                    (typeof selectedPurchaseItem.price === 'number' ? selectedPurchaseItem.price : parseFloat(selectedPurchaseItem.price)) > dailyPurchaseStatus.remaining
+                      ? 'text-red-400'
+                      : 'text-green-400'
+                  }`}>
+                    ${dailyPurchaseStatus.remaining.toFixed(2)}
+                  </span>
+                </div>
+                {(typeof selectedPurchaseItem.price === 'number' ? selectedPurchaseItem.price : parseFloat(selectedPurchaseItem.price)) > dailyPurchaseStatus.remaining && (
+                  <p className="text-red-400 text-xs mt-2 flex items-center gap-1">
+                    <AlertTriangle size={12} />
+                    Este artículo excede tu límite diario disponible
+                  </p>
+                )}
+              </div>
+
               {/* Warning */}
               <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 mb-6">
                 <p className="text-yellow-400 text-sm flex items-start gap-2">
@@ -1453,9 +1599,13 @@ export const MarketplacePage = () => {
                 </button>
                 <button
                   onClick={handleConfirmPurchase}
-                  disabled={isPurchasing || (balance || 0) < selectedPurchaseItem.price}
+                  disabled={
+                    isPurchasing || 
+                    (balance || 0) < selectedPurchaseItem.price ||
+                    (typeof selectedPurchaseItem.price === 'number' ? selectedPurchaseItem.price : parseFloat(selectedPurchaseItem.price)) > dailyPurchaseStatus.remaining
+                  }
                   className={`flex-1 flex justify-center items-center gap-2 rounded-lg font-bold text-white py-3 transition-all
-                    ${isPurchasing || (balance || 0) < selectedPurchaseItem.price
+                    ${isPurchasing || (balance || 0) < selectedPurchaseItem.price || (typeof selectedPurchaseItem.price === 'number' ? selectedPurchaseItem.price : parseFloat(selectedPurchaseItem.price)) > dailyPurchaseStatus.remaining
                       ? 'bg-gray-600 cursor-not-allowed opacity-50'
                       : 'bg-green-600 hover:bg-green-500 shadow-lg shadow-green-900/30'
                     }`}

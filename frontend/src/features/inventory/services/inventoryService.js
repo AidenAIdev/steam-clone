@@ -127,6 +127,21 @@ export const inventoryService = {
     },
 
     /**
+     * Obtiene el estado del límite diario de compras
+     * @returns {Promise<{dailyTotal: number, dailyLimit: number, remaining: number, limitReached: boolean}>}
+     */
+    async getDailyPurchaseStatus() {
+        const response = await fetch(`${API_URL}/inventory/market/daily-limit`, {
+            credentials: 'include'
+        });
+        const data = await response.json();
+        if (!data.success) {
+            return { dailyTotal: 0, dailyLimit: 2000, remaining: 2000, limitReached: false };
+        }
+        return data.data;
+    },
+
+    /**
      * Obtiene trades activos
      */
     async getActiveTrades() {

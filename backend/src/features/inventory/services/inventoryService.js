@@ -366,6 +366,34 @@ export const inventoryService = {
     },
 
     /**
+     * Obtiene el total de compras del día para un usuario
+     * @param {string} userId - ID del usuario
+     * @returns {Promise<number>} Total gastado hoy
+     */
+    async getDailyPurchaseTotal(userId) {
+        // Obtener inicio del día en UTC
+        const today = new Date();
+        today.setUTCHours(0, 0, 0, 0);
+        
+        const { data, error } = await supabase
+            .from('wallet_transactions')
+            .select('amount')
+            .eq('user_id', userId)
+            .eq('type', 'purchase')
+            .eq('status', 'completed')
+            .gte('created_at', today.toISOString());
+
+        if (error) {
+            console.error('Error obteniendo compras del día:', error);
+            return 0;
+        }
+
+        // Sumar todas las compras (amount es negativo en compras)
+        const total = data.reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
+        return total;
+    },
+
+    /**
      * Compra un item del marketplace de forma atómica y segura
      * Source of Truth: El precio se obtiene de la DB, NO del cliente
      * @param {string} buyerId - ID del comprador

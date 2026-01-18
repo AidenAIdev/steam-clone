@@ -13,6 +13,7 @@ router.post('/sell/cancel', requireAuth, inventoryController.cancelListing);
 router.patch('/sell/price', requireAuth, inventoryController.updateListingPrice);
 router.post('/market/purchase', requireAuth, inventoryController.purchaseItem);
 router.get('/market', optionalAuth, inventoryController.getMarketListings);
+router.get('/market/daily-limit', requireAuth, inventoryController.getDailyPurchaseStatus);
 router.get('/trades', optionalAuth, inventoryController.getActiveTrades);
 
 // Obtener inventario de un usuario (puede ser público, amigos o privado)

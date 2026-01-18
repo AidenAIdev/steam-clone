@@ -7,6 +7,7 @@ import { useInventory } from '../hooks/useInventory';
 import { tradeService } from '../services/tradeService';
 import { useTrade } from '../hooks/useTrade';
 import { useWallet } from '../../wallet/hooks/useWallet';
+import { LimitedAccountBanner } from '../../wallet';
 import { validatePrice, sanitizePriceInput, formatPriceOnBlur, getPriceValidationState, PRICE_CONFIG, MARKETPLACE_LIMITS, TRADE_LIMITS } from '../utils/priceValidation';
 
 export const MarketplacePage = () => {
@@ -657,6 +658,9 @@ export const MarketplacePage = () => {
 
   return (
     <div className="min-h-screen bg-[#1b2838] text-white">
+      {/* Banner de cuenta limitada */}
+      {user && <LimitedAccountBanner />}
+      
       {/* Page Header */}
       <div className="bg-[#171a21] py-8 shadow-lg">
         <div className="max-w-7xl mx-auto px-4">

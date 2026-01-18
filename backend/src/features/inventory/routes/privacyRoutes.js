@@ -1,6 +1,7 @@
 import express from 'express';
 import { privacyController } from '../controllers/privacyController.js';
 import { requireAuth, optionalAuth } from '../../../shared/middleware/authMiddleware.js';
+import { limitedAccountValidationMiddleware } from '../../../shared/middleware/limitedAccountValidationMiddleware.js';
 
 const router = express.Router();
 
@@ -12,7 +13,8 @@ const router = express.Router();
 router.get('/settings', requireAuth, privacyController.getPrivacySettings);
 
 // Actualizar configuración de privacidad del usuario autenticado
-router.put('/settings', requireAuth, privacyController.updatePrivacySettings);
+// Requiere cuenta no limitada para modificar privacidad
+router.put('/settings', requireAuth, limitedAccountValidationMiddleware, privacyController.updatePrivacySettings);
 
 // =====================================================
 // RUTAS DE VERIFICACIÓN DE ACCESO

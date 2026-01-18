@@ -14,7 +14,7 @@ export const SelectorJuegos = ({ juegos, juegoSeleccionado, onSeleccionar }) => 
               No hay aplicaciones disponibles
             </div>
             <div className="text-gray-500 text-xs">
-              Solo los aplicaciones aprobadas pueden generar llaves
+              Solo las aplicaciones aprobadas o publicadas pueden generar llaves
             </div>
           </div>
         ) : (

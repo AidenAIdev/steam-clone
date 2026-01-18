@@ -16,7 +16,7 @@ export const aplicacionesService = {
           updated_at
         `)
         .eq('desarrollador_id', desarrolladorId)
-        .eq('estado_revision', 'aprobado')
+        .in('estado_revision', ['aprobado', 'publicado'])
         .order('created_at', { ascending: false });
 
       if (error) {

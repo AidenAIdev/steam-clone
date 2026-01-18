@@ -144,16 +144,67 @@ export const newAppService = {
       };
 
       // 4. Subir archivos a Supabase Storage (si existen)
+      let buildPublicUrl = null;
+      let portadaPublicUrl = null;
+
       if (archivos.build_file) {
-        // TODO: Implementar subida a Supabase Storage
-        // Por ahora, guardamos un placeholder
-        datosInsert.build_storage_path = `builds/${appId}/${archivos.build_file.name}`;
+        const buildFile = archivos.build_file;
+        const extension = buildFile.originalname.slice(buildFile.originalname.lastIndexOf('.'));
+        const buildFileName = `executable${extension}`;
+        const buildPath = `${appId}/${buildFileName}`;
+
+        // Subir archivo ejecutable al bucket "builds"
+        const { data: uploadBuildData, error: uploadBuildError } = await supabaseAdmin.storage
+          .from('builds')
+          .upload(buildPath, buildFile.buffer, {
+            contentType: buildFile.mimetype,
+            upsert: false
+          });
+
+        if (uploadBuildError) {
+          console.error('[NEW_APP] Error al subir ejecutable:', uploadBuildError);
+          throw new Error('Error al subir el archivo ejecutable');
+        }
+
+        // Generar URL pública del ejecutable
+        const { data: buildUrlData } = supabaseAdmin.storage
+          .from('builds')
+          .getPublicUrl(buildPath);
+
+        buildPublicUrl = buildUrlData.publicUrl;
+        
+        // Guardar URL pública en la BD
+        datosInsert.build_storage_path = buildPublicUrl;
       }
 
       if (archivos.portada_file) {
-        // TODO: Implementar subida a Supabase Storage
-        // Por ahora, guardamos un placeholder
-        datosInsert.portada_image_path = `portadas/${appId}/${archivos.portada_file.name}`;
+        const portadaFile = archivos.portada_file;
+        const extension = portadaFile.originalname.slice(portadaFile.originalname.lastIndexOf('.'));
+        const portadaFileName = `portada${extension}`;
+        const portadaPath = `${appId}/${portadaFileName}`;
+
+        // Subir imagen de portada al bucket "builds"
+        const { data: uploadPortadaData, error: uploadPortadaError } = await supabaseAdmin.storage
+          .from('builds')
+          .upload(portadaPath, portadaFile.buffer, {
+            contentType: portadaFile.mimetype,
+            upsert: false
+          });
+
+        if (uploadPortadaError) {
+          console.error('[NEW_APP] Error al subir portada:', uploadPortadaError);
+          throw new Error('Error al subir la imagen de portada');
+        }
+
+        // Generar URL pública de la portada
+        const { data: portadaUrlData } = supabaseAdmin.storage
+          .from('builds')
+          .getPublicUrl(portadaPath);
+
+        portadaPublicUrl = portadaUrlData.publicUrl;
+        
+        // Guardar URL pública en la BD
+        datosInsert.portada_image_path = portadaPublicUrl;
       }
 
       // 5. Insertar en la base de datos
@@ -194,6 +245,10 @@ export const newAppService = {
         pago_registro_completado: nuevaApp.pago_registro_completado,
         monto_pago_registro: nuevaApp.monto_pago_registro,
         created_at: nuevaApp.created_at,
+        archivos_subidos: {
+          ejecutable: buildPublicUrl,
+          portada: portadaPublicUrl
+        },
         mensaje: 'Aplicación creada exitosamente. Se requiere pago de $100 USD para activar el AppID.'
       };
 
@@ -302,13 +357,81 @@ export const newAppService = {
 
       // 3. Actualizar archivos si se proveen
       if (archivos.build_file) {
-        // TODO: Implementar subida a Supabase Storage
-        datosUpdate.build_storage_path = `builds/${aplicacion.app_id}/${archivos.build_file.name}`;
+        const buildFile = archivos.build_file;
+        const extension = buildFile.originalname.slice(buildFile.originalname.lastIndexOf('.'));
+        const buildFileName = `executable${extension}`;
+        const buildPath = `${aplicacion.app_id}/${buildFileName}`;
+
+        // Eliminar archivo anterior si existe
+        if (aplicacion.build_storage_path) {
+          // Extraer la ruta desde la URL (la parte después de '/builds/')
+          const oldPath = aplicacion.build_storage_path.includes('/builds/') 
+            ? aplicacion.build_storage_path.split('/builds/')[1]
+            : aplicacion.build_storage_path;
+          
+          await supabaseAdmin.storage
+            .from('builds')
+            .remove([oldPath]);
+        }
+
+        // Subir nuevo archivo ejecutable
+        const { data: uploadBuildData, error: uploadBuildError } = await supabaseAdmin.storage
+          .from('builds')
+          .upload(buildPath, buildFile.buffer, {
+            contentType: buildFile.mimetype,
+            upsert: true
+          });
+
+        if (uploadBuildError) {
+          console.error('[NEW_APP] Error al actualizar ejecutable:', uploadBuildError);
+          throw new Error('Error al actualizar el archivo ejecutable');
+        }
+
+        // Generar y guardar URL pública
+        const { data: buildUrlData } = supabaseAdmin.storage
+          .from('builds')
+          .getPublicUrl(buildPath);
+
+        datosUpdate.build_storage_path = buildUrlData.publicUrl;
       }
 
       if (archivos.portada_file) {
-        // TODO: Implementar subida a Supabase Storage
-        datosUpdate.portada_image_path = `portadas/${aplicacion.app_id}/${archivos.portada_file.name}`;
+        const portadaFile = archivos.portada_file;
+        const extension = portadaFile.originalname.slice(portadaFile.originalname.lastIndexOf('.'));
+        const portadaFileName = `portada${extension}`;
+        const portadaPath = `${aplicacion.app_id}/${portadaFileName}`;
+
+        // Eliminar imagen anterior si existe
+        if (aplicacion.portada_image_path) {
+          // Extraer la ruta desde la URL (la parte después de '/builds/')
+          const oldPath = aplicacion.portada_image_path.includes('/builds/') 
+            ? aplicacion.portada_image_path.split('/builds/')[1]
+            : aplicacion.portada_image_path;
+          
+          await supabaseAdmin.storage
+            .from('builds')
+            .remove([oldPath]);
+        }
+
+        // Subir nueva imagen de portada
+        const { data: uploadPortadaData, error: uploadPortadaError } = await supabaseAdmin.storage
+          .from('builds')
+          .upload(portadaPath, portadaFile.buffer, {
+            contentType: portadaFile.mimetype,
+            upsert: true
+          });
+
+        if (uploadPortadaError) {
+          console.error('[NEW_APP] Error al actualizar portada:', uploadPortadaError);
+          throw new Error('Error al actualizar la imagen de portada');
+        }
+
+        // Generar y guardar URL pública
+        const { data: portadaUrlData } = supabaseAdmin.storage
+          .from('builds')
+          .getPublicUrl(portadaPath);
+
+        datosUpdate.portada_image_path = portadaUrlData.publicUrl;
       }
 
       // 4. Actualizar en la base de datos

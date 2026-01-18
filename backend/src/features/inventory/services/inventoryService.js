@@ -246,6 +246,71 @@ export const inventoryService = {
     },
 
     /**
+     * Actualiza el precio de un listing activo
+     * Verificación de ownership incluida para seguridad
+     * @param {string} userId - ID del usuario (debe ser el dueño)
+     * @param {string} listingId - ID del listing
+     * @param {number} newPrice - Nuevo precio (ya sanitizado)
+     */
+    async updateListingPrice(userId, listingId, newPrice) {
+        // Primero verificamos que el listing exista y pertenezca al usuario
+        const { data: listing, error: fetchError } = await supabase
+            .from('marketplace_listings')
+            .select('id, seller_id, status, price')
+            .eq('id', listingId)
+            .single();
+
+        if (fetchError || !listing) {
+            throw new Error('Publicación no encontrada');
+        }
+
+        // Verificar ownership (CRÍTICO para seguridad)
+        if (listing.seller_id !== userId) {
+            console.warn(`Intento no autorizado de actualizar precio. User: ${userId}, Listing owner: ${listing.seller_id}`);
+            throw new Error('Esta publicación no te pertenece');
+        }
+
+        // Verificar que esté activa
+        if (listing.status !== 'Active') {
+            throw new Error('Esta publicación ya no está activa');
+        }
+
+        // Verificar que el precio sea diferente (evitar updates innecesarios)
+        if (listing.price === newPrice) {
+            return {
+                id: listing.id,
+                price: listing.price,
+                updated_at: new Date().toISOString(),
+                unchanged: true
+            };
+        }
+
+        // Actualizar el precio
+        const { data: updated, error: updateError } = await supabase
+            .from('marketplace_listings')
+            .update({ 
+                price: newPrice,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', listingId)
+            .eq('seller_id', userId) // Doble verificación de seguridad
+            .eq('status', 'Active')
+            .select('id, price, updated_at')
+            .single();
+
+        if (updateError) {
+            console.error('Error actualizando precio:', updateError);
+            throw new Error('Error al actualizar el precio');
+        }
+
+        if (!updated) {
+            throw new Error('No se pudo actualizar el precio');
+        }
+
+        return updated;
+    },
+
+    /**
      * Obtiene todos los items listados en el mercado
      */
     async getMarketListings() {

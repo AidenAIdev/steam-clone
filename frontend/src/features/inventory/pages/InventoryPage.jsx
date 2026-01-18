@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Package, Gamepad2, ArrowLeft, Search, Filter, Grid, List, Lock, TrendingUp, RefreshCw, DollarSign, X, ShoppingCart, Repeat, AlertTriangle } from 'lucide-react';
+import { Package, Gamepad2, ArrowLeft, Search, Filter, Grid, List, Lock, TrendingUp, RefreshCw, DollarSign, X, ShoppingCart, Repeat, AlertTriangle, Edit2, Save, Loader2 } from 'lucide-react';
 import { useAuth } from '../../../shared/context/AuthContext';
 import { useInventory } from '../hooks/useInventory';
 import { inventoryService } from '../services/inventoryService';
@@ -22,6 +22,11 @@ export const InventoryPage = () => {
   const [sellPrice, setSellPrice] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [itemActualModalSell, setItemActualModalSell] = useState(null);
+
+  // Estados para edición de precio en modal
+  const [isEditingPrice, setIsEditingPrice] = useState(false);
+  const [editPrice, setEditPrice] = useState('');
+  const [isUpdatingPrice, setIsUpdatingPrice] = useState(false);
 
   // Contar items actualmente listados para venta
   const activeListingsCount = inventory?.filter(item => item.active_listing)?.length || 0;
@@ -123,9 +128,73 @@ export const InventoryPage = () => {
       }
   };
 
+  // Handlers para editar precio
+  const handleStartEditPrice = (currentPrice) => {
+    setIsEditingPrice(true);
+    setEditPrice(typeof currentPrice === 'number' ? currentPrice.toFixed(2) : currentPrice);
+  };
+
+  const handleCancelEditPrice = () => {
+    setIsEditingPrice(false);
+    setEditPrice('');
+  };
+
+  const handleEditPriceChange = (value) => {
+    const result = sanitizePriceInput(value);
+    if (result.isValid) {
+      setEditPrice(value);
+    }
+  };
+
+  const handleEditPriceBlur = () => {
+    if (editPrice) {
+      setEditPrice(formatPriceOnBlur(editPrice));
+    }
+  };
+
+  const handleUpdatePrice = async (listingId, currentPrice) => {
+    // Validar precio
+    const priceValidation = validatePrice(editPrice);
+    if (!priceValidation.valid) {
+      showErrorMessage(priceValidation.message);
+      return;
+    }
+
+    // Si el precio es el mismo, solo cerrar
+    if (priceValidation.price === currentPrice) {
+      handleCancelEditPrice();
+      return;
+    }
+
+    setIsUpdatingPrice(true);
+    try {
+      await inventoryService.updateListingPrice(listingId, priceValidation.price);
+      
+      // Actualizar el item seleccionado localmente
+      setSelectedItem(prev => ({
+        ...prev,
+        active_listing: {
+          ...prev.active_listing,
+          price: priceValidation.price
+        }
+      }));
+      
+      handleCancelEditPrice();
+      showSuccessMessage(`Precio actualizado a $${priceValidation.price.toFixed(2)}`);
+      refetch(); // Actualizar inventario
+    } catch (error) {
+      console.error("Error updating price:", error);
+      showErrorMessage(error.message || "Error al actualizar el precio");
+    } finally {
+      setIsUpdatingPrice(false);
+    }
+  };
+
   const closeModal = () => {
       setSelectedItem(null);
       setShowSellModal(false);
+      setIsEditingPrice(false);
+      setEditPrice('');
   };
 
   // Filter and sort inventory
@@ -780,9 +849,74 @@ export const InventoryPage = () => {
                         {selectedItem.is_locked ? (
                           <>
                             {selectedItem.active_listing && (
-                              <span className="bg-yellow-500/20 text-yellow-400 px-3 py-1 rounded-md text-sm font-medium flex items-center gap-2">
-                                <ShoppingCart size={16} /> En Venta (${selectedItem.active_listing.price})
-                              </span>
+                              <div className="w-full">
+                                {isEditingPrice ? (
+                                  <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 space-y-2">
+                                    <div className="flex items-center gap-2">
+                                      <ShoppingCart size={16} className="text-yellow-400" />
+                                      <span className="text-yellow-400 text-sm font-medium">En Venta - Editar Precio</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <div className="relative flex-1">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                                        <input
+                                          type="text"
+                                          value={editPrice}
+                                          onChange={(e) => handleEditPriceChange(e.target.value)}
+                                          onBlur={handleEditPriceBlur}
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter') handleUpdatePrice(selectedItem.active_listing.id, selectedItem.active_listing.price);
+                                            if (e.key === 'Escape') handleCancelEditPrice();
+                                          }}
+                                          className={`w-full pl-7 pr-3 py-2 bg-[#2a475e] border rounded-lg text-white focus:outline-none focus:ring-2 ${
+                                            getPriceValidationState(editPrice)?.error 
+                                              ? 'border-red-500 focus:ring-red-500' 
+                                              : 'border-gray-600 focus:ring-blue-500'
+                                          }`}
+                                          placeholder={selectedItem.active_listing.price.toFixed(2)}
+                                          autoFocus
+                                          disabled={isUpdatingPrice}
+                                        />
+                                      </div>
+                                      <button
+                                        onClick={() => handleUpdatePrice(selectedItem.active_listing.id, selectedItem.active_listing.price)}
+                                        disabled={isUpdatingPrice || getPriceValidationState(editPrice)?.error}
+                                        className="p-2 bg-green-600 hover:bg-green-500 rounded-lg text-white transition disabled:bg-gray-600 disabled:cursor-not-allowed"
+                                        title="Guardar (Enter)"
+                                      >
+                                        {isUpdatingPrice ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+                                      </button>
+                                      <button
+                                        onClick={handleCancelEditPrice}
+                                        disabled={isUpdatingPrice}
+                                        className="p-2 bg-gray-600 hover:bg-gray-500 rounded-lg text-white transition"
+                                        title="Cancelar (Esc)"
+                                      >
+                                        <X size={18} />
+                                      </button>
+                                    </div>
+                                    {getPriceValidationState(editPrice)?.error && (
+                                      <p className="text-xs text-red-400">{getPriceValidationState(editPrice).error}</p>
+                                    )}
+                                    <p className="text-xs text-gray-500">
+                                      ${PRICE_CONFIG.MIN.toFixed(2)} - ${PRICE_CONFIG.MAX.toLocaleString()} · Enter para guardar · Esc para cancelar
+                                    </p>
+                                  </div>
+                                ) : (
+                                  <div className="bg-yellow-500/20 text-yellow-400 px-3 py-2 rounded-md text-sm font-medium flex items-center justify-between">
+                                    <span className="flex items-center gap-2">
+                                      <ShoppingCart size={16} /> En Venta (${selectedItem.active_listing.price})
+                                    </span>
+                                    <button
+                                      onClick={() => handleStartEditPrice(selectedItem.active_listing.price)}
+                                      className="p-1 hover:bg-yellow-500/30 rounded transition"
+                                      title="Editar precio"
+                                    >
+                                      <Edit2 size={14} />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
                             )}
                             {selectedItem.active_trade && (
                               <span className="bg-purple-500/20 text-purple-400 px-3 py-1 rounded-md text-sm font-medium flex items-center gap-2">

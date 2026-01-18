@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ShoppingCart, Repeat, Search, DollarSign, Filter, Package, X, ArrowLeft, Inbox, Check, Info, Send, Loader2, User, Tag, AlertTriangle } from 'lucide-react';
+import { ShoppingCart, Repeat, Search, DollarSign, Filter, Package, X, ArrowLeft, Inbox, Check, Info, Send, Loader2, User, Tag, AlertTriangle, Edit2, Save } from 'lucide-react';
 import { inventoryService } from '../services/inventoryService';
 import { useAuth } from '../../../shared/context/AuthContext';
 import { useInventory } from '../hooks/useInventory';
@@ -32,6 +32,11 @@ export const MarketplacePage = () => {
   const [showCancelTradeModal, setShowCancelTradeModal] = useState(false);
   const [selectedSellItem, setSelectedSellItem] = useState(null);
   const [sellPrice, setSellPrice] = useState('');
+
+  // Estados para edición de precio
+  const [editingPriceId, setEditingPriceId] = useState(null);
+  const [editPrice, setEditPrice] = useState('');
+  const [isUpdatingPrice, setIsUpdatingPrice] = useState(false);
 
   // Estados para el Modal de Compra
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
@@ -142,6 +147,67 @@ export const MarketplacePage = () => {
     } catch (error) {
       console.error("Error cancelling listing:", error);
       showErrorMessage("Error al cancelar la venta: " + error.message);
+    }
+  };
+
+  // Handlers para editar precio
+  const handleStartEditPrice = (item) => {
+    setEditingPriceId(item.id);
+    setEditPrice(typeof item.price === 'number' ? item.price.toFixed(2) : item.price);
+  };
+
+  const handleCancelEditPrice = () => {
+    setEditingPriceId(null);
+    setEditPrice('');
+  };
+
+  const handleEditPriceChange = (value) => {
+    const result = sanitizePriceInput(value);
+    if (result.isValid) {
+      setEditPrice(value);
+    }
+  };
+
+  const handleEditPriceBlur = () => {
+    if (editPrice) {
+      setEditPrice(formatPriceOnBlur(editPrice));
+    }
+  };
+
+  const handleUpdatePrice = async (listingId, currentPrice) => {
+    // Validar precio
+    const priceValidation = validatePrice(editPrice);
+    if (!priceValidation.valid) {
+      showErrorMessage(priceValidation.message);
+      return;
+    }
+
+    // Si el precio es el mismo, solo cerrar
+    if (priceValidation.price === currentPrice) {
+      handleCancelEditPrice();
+      return;
+    }
+
+    setIsUpdatingPrice(true);
+    try {
+      const result = await inventoryService.updateListingPrice(listingId, priceValidation.price);
+      
+      // Actualizar lista local
+      setMarketItems(prevItems => 
+        prevItems.map(item => 
+          item.id === listingId 
+            ? { ...item, price: priceValidation.price }
+            : item
+        )
+      );
+      
+      handleCancelEditPrice();
+      showSuccessMessage(`Precio actualizado a $${priceValidation.price.toFixed(2)}`);
+    } catch (error) {
+      console.error("Error updating price:", error);
+      showErrorMessage(error.message || "Error al actualizar el precio");
+    } finally {
+      setIsUpdatingPrice(false);
     }
   };
 
@@ -835,36 +901,110 @@ export const MarketplacePage = () => {
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                      {myMarketListings.map((item) => (
-                        <div key={item.id} className="bg-[#1b2838] border border-yellow-500/30 p-4 rounded-lg relative group">
-                          {/* Badge de propiedad */}
-                          <div className="absolute top-2 left-2 bg-yellow-500 text-black text-xs px-2 py-0.5 rounded font-bold">
-                            TU ARTÍCULO
-                          </div>
-                          
-                          <div className="h-32 bg-gradient-to-br from-gray-700 to-gray-800 rounded-md mb-3 flex items-center justify-center">
-                            <Package className="text-yellow-400" size={48} />
-                          </div>
-                          <h3 className="font-semibold text-yellow-300 truncate">{item.name || item.itemName || `Item #${item.steam_item_id}`}</h3>
-                          <p className="text-xs text-gray-400 mb-2">{item.game || "Steam"}</p>
-                          <div className="flex justify-between items-center mt-3">
-                            <span className="text-green-400 font-bold text-lg">
-                              ${typeof item.price === 'number' ? item.price.toFixed(2) : parseFloat(item.price).toFixed(2)}
-                            </span>
+                      {myMarketListings.map((item) => {
+                        const isEditing = editingPriceId === item.id;
+                        const currentPrice = typeof item.price === 'number' ? item.price : parseFloat(item.price);
+                        const editPriceState = isEditing ? getPriceValidationState(editPrice) : null;
+                        
+                        return (
+                          <div key={item.id} className="bg-[#1b2838] border border-yellow-500/30 p-4 rounded-lg relative group">
+                            {/* Badge de propiedad */}
+                            <div className="absolute top-2 left-2 bg-yellow-500 text-black text-xs px-2 py-0.5 rounded font-bold">
+                              TU ARTÍCULO
+                            </div>
                             
-                            <button 
-                              onClick={() => handleCancelListing(item.id)}
-                              className="bg-red-600 hover:bg-red-500 px-3 py-1 rounded text-sm font-medium transition flex items-center gap-1"
-                            >
-                              <X size={14} />
-                              Cancelar
-                            </button>
+                            <div className="h-32 bg-gradient-to-br from-gray-700 to-gray-800 rounded-md mb-3 flex items-center justify-center">
+                              <Package className="text-yellow-400" size={48} />
+                            </div>
+                            <h3 className="font-semibold text-yellow-300 truncate">{item.name || item.itemName || `Item #${item.steam_item_id}`}</h3>
+                            <p className="text-xs text-gray-400 mb-2">{item.game || "Steam"}</p>
+                            
+                            {/* Sección de precio con edición inline */}
+                            <div className="mt-3">
+                              {isEditing ? (
+                                <div className="space-y-2">
+                                  <div className="flex items-center gap-2">
+                                    <div className="relative flex-1">
+                                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                                      <input
+                                        type="text"
+                                        value={editPrice}
+                                        onChange={(e) => handleEditPriceChange(e.target.value)}
+                                        onBlur={handleEditPriceBlur}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') handleUpdatePrice(item.id, currentPrice);
+                                          if (e.key === 'Escape') handleCancelEditPrice();
+                                        }}
+                                        className={`w-full pl-6 pr-2 py-1.5 bg-[#2a475e] border rounded text-white text-sm focus:outline-none focus:ring-2 ${
+                                          editPriceState?.error 
+                                            ? 'border-red-500 focus:ring-red-500' 
+                                            : 'border-gray-600 focus:ring-blue-500'
+                                        }`}
+                                        placeholder={currentPrice.toFixed(2)}
+                                        autoFocus
+                                        disabled={isUpdatingPrice}
+                                      />
+                                    </div>
+                                    <button
+                                      onClick={() => handleUpdatePrice(item.id, currentPrice)}
+                                      disabled={isUpdatingPrice || editPriceState?.error}
+                                      className="p-1.5 bg-green-600 hover:bg-green-500 rounded text-white transition disabled:bg-gray-600 disabled:cursor-not-allowed"
+                                      title="Guardar (Enter)"
+                                    >
+                                      {isUpdatingPrice ? (
+                                        <Loader2 size={16} className="animate-spin" />
+                                      ) : (
+                                        <Save size={16} />
+                                      )}
+                                    </button>
+                                    <button
+                                      onClick={handleCancelEditPrice}
+                                      disabled={isUpdatingPrice}
+                                      className="p-1.5 bg-gray-600 hover:bg-gray-500 rounded text-white transition"
+                                      title="Cancelar (Esc)"
+                                    >
+                                      <X size={16} />
+                                    </button>
+                                  </div>
+                                  {editPriceState?.error && (
+                                    <p className="text-xs text-red-400">{editPriceState.error}</p>
+                                  )}
+                                  <p className="text-xs text-gray-500">
+                                    ${PRICE_CONFIG.MIN.toFixed(2)} - ${PRICE_CONFIG.MAX.toLocaleString()} · Enter para guardar · Esc para cancelar
+                                  </p>
+                                </div>
+                              ) : (
+                                <div className="flex justify-between items-center">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-green-400 font-bold text-lg">
+                                      ${currentPrice.toFixed(2)}
+                                    </span>
+                                    <button
+                                      onClick={() => handleStartEditPrice(item)}
+                                      className="p-1 text-gray-400 hover:text-yellow-400 hover:bg-[#2a475e] rounded transition opacity-0 group-hover:opacity-100"
+                                      title="Editar precio"
+                                    >
+                                      <Edit2 size={14} />
+                                    </button>
+                                  </div>
+                                  
+                                  <button 
+                                    onClick={() => handleCancelListing(item.id)}
+                                    className="bg-red-600 hover:bg-red-500 px-3 py-1 rounded text-sm font-medium transition flex items-center gap-1"
+                                  >
+                                    <X size={14} />
+                                    Cancelar
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                            
+                            <div className="text-xs text-gray-500 mt-2">
+                              Publicado: {new Date(item.listing_date).toLocaleDateString()}
+                            </div>
                           </div>
-                          <div className="text-xs text-gray-500 mt-2">
-                            Publicado: {new Date(item.listing_date).toLocaleDateString()}
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>

@@ -1,4 +1,5 @@
 import { inventoryService } from '../services/inventoryService.js';
+import { validatePrice, isValidUUID, MARKETPLACE_LIMITS } from '../config/priceConfig.js';
 
 export const inventoryController = {
     /**
@@ -62,40 +63,25 @@ export const inventoryController = {
             }
 
             // Validación de límite de listings activos
-            const MAX_ACTIVE_LISTINGS = 10;
             const activeListingsCount = await inventoryService.countActiveListings(userId);
             
-            if (activeListingsCount >= MAX_ACTIVE_LISTINGS) {
+            if (activeListingsCount >= MARKETPLACE_LIMITS.MAX_ACTIVE_LISTINGS) {
                 return res.status(400).json({ 
                     success: false, 
-                    message: `Has alcanzado el límite máximo de ${MAX_ACTIVE_LISTINGS} artículos en venta. Cancela alguna venta para publicar más.`,
+                    message: `Has alcanzado el límite máximo de ${MARKETPLACE_LIMITS.MAX_ACTIVE_LISTINGS} artículos en venta. Cancela alguna venta para publicar más.`,
                     code: 'MAX_LISTINGS_REACHED',
                     currentCount: activeListingsCount,
-                    maxAllowed: MAX_ACTIVE_LISTINGS
+                    maxAllowed: MARKETPLACE_LIMITS.MAX_ACTIVE_LISTINGS
                 });
             }
 
-            // Validación de precio
-            const PRICE_MIN = 0.01;
-            const PRICE_MAX = 999999.99;
-            const numPrice = parseFloat(price);
-
-            if (isNaN(numPrice)) {
-                return res.status(400).json({ success: false, message: 'El precio debe ser un número válido' });
+            // Validación de precio usando utilidad centralizada
+            const priceValidation = validatePrice(price);
+            if (!priceValidation.valid) {
+                return res.status(400).json({ success: false, message: priceValidation.error });
             }
 
-            if (numPrice < PRICE_MIN) {
-                return res.status(400).json({ success: false, message: `El precio mínimo es $${PRICE_MIN.toFixed(2)}` });
-            }
-
-            if (numPrice > PRICE_MAX) {
-                return res.status(400).json({ success: false, message: `El precio máximo es $${PRICE_MAX.toLocaleString()}` });
-            }
-
-            // Redondear a 2 decimales para evitar problemas de precisión
-            const sanitizedPrice = Math.round(numPrice * 100) / 100;
-
-            const item = await inventoryService.listForSale(userId, itemId, sanitizedPrice);
+            const item = await inventoryService.listForSale(userId, itemId, priceValidation.sanitizedPrice);
 
             res.json({
                 success: true,
@@ -212,6 +198,82 @@ export const inventoryController = {
             } else if (error.message.includes('tu propio artículo')) {
                 statusCode = 400; // Bad Request
             } else if (error.message.includes('ya fue procesada')) {
+                statusCode = 409; // Conflict
+            }
+
+            res.status(statusCode).json({ 
+                success: false, 
+                message: error.message 
+            });
+        }
+    },
+
+    /**
+     * Actualizar precio de un listing
+     * Validaciones de seguridad:
+     * - Usuario autenticado
+     * - Usuario es dueño del listing
+     * - Precio válido dentro de rango
+     * - Listing activo
+     */
+    async updateListingPrice(req, res) {
+        try {
+            const userId = req.user.id;
+            const { listingId, newPrice } = req.body;
+
+            // Validación de datos requeridos
+            if (!listingId) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: 'ID de publicación requerido' 
+                });
+            }
+
+            if (newPrice === undefined || newPrice === null) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: 'Nuevo precio requerido' 
+                });
+            }
+
+            // Validar formato UUID (prevenir inyección)
+            if (!isValidUUID(listingId)) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: 'Formato de ID inválido' 
+                });
+            }
+
+            // Validación de precio usando utilidad centralizada
+            const priceValidation = validatePrice(newPrice);
+            if (!priceValidation.valid) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: priceValidation.error 
+                });
+            }
+
+            // Actualizar precio (service verifica ownership)
+            const result = await inventoryService.updateListingPrice(userId, listingId, priceValidation.sanitizedPrice);
+
+            res.json({
+                success: true,
+                message: 'Precio actualizado correctamente',
+                listing: {
+                    id: result.id,
+                    price: result.price,
+                    updated_at: result.updated_at
+                }
+            });
+        } catch (error) {
+            console.error('Error en updateListingPrice:', error);
+            
+            // Determinar código de estado apropiado
+            let statusCode = 500;
+            if (error.message.includes('no encontrada') || 
+                error.message.includes('no pertenece')) {
+                statusCode = 403; // Forbidden
+            } else if (error.message.includes('no está activa')) {
                 statusCode = 409; // Conflict
             }
 

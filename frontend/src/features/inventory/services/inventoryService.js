@@ -97,6 +97,24 @@ export const inventoryService = {
     },
 
     /**
+     * Actualiza el precio de una venta activa
+     * @param {string} listingId - ID de la publicación
+     * @param {number} newPrice - Nuevo precio (debe estar validado)
+     */
+    async updateListingPrice(listingId, newPrice) {
+        const response = await fetch(`${API_URL}/inventory/sell/price`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ listingId, newPrice })
+        });
+
+        const data = await response.json();
+        if (!data.success) throw new Error(data.message || 'Error al actualizar precio');
+        return data;
+    },
+
+    /**
      * Obtiene el listado del mercado
      */
     async getMarketListings() {

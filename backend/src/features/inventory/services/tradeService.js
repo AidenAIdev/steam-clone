@@ -2,14 +2,6 @@ import supabase from '../../../shared/config/supabase.js';
 import { TRADE_LIMITS, isValidUUID } from '../config/priceConfig.js';
 import { privacyService } from './privacyService.js';
 
-const ALLOWED_STATUSES = {
-	PENDING: 'Pendiente',
-	ACCEPTED: 'Aceptada',
-	REJECTED: 'Rechazada',
-	EXPIRED: 'Expirada',
-	CANCELLED: 'Cancelada',
-};
-
 export const tradeService = {
 	/**
 	 * Obtiene el conteo de trades activos de un usuario

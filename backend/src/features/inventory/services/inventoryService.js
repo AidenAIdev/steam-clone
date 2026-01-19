@@ -232,7 +232,7 @@ export const inventoryService = {
             .eq('status', 'active');
 
         if (error) {
-            console.error("Error contando listings activos:", error);
+            console.error('Error contando listings activos:', error);
             throw new Error(error.message);
         }
 
@@ -251,7 +251,7 @@ export const inventoryService = {
         });
 
         if (error) {
-            console.error("Error en transacción venta:", error);
+            console.error('Error en transacción venta:', error);
             throw new Error(error.message);
         }
 
@@ -278,7 +278,7 @@ export const inventoryService = {
         });
 
         if (error) {
-            console.error("Error en transacción cancelación:", error);
+            console.error('Error en transacción cancelación:', error);
             throw new Error(error.message);
         }
 
@@ -382,7 +382,7 @@ export const inventoryService = {
             .order('created_at', { ascending: false });
 
         if (error) {
-            console.error("Error fetching market listings:", error);
+            console.error('Error fetching market listings:', error);
             throw error;
         }
 

@@ -197,6 +197,7 @@ export const announcementService = {
             .from('grupos')
             .select('visibilidad')
             .eq('id', groupId)
+            .eq('estado', 'activo')
             .is('deleted_at', null)
             .single();
 

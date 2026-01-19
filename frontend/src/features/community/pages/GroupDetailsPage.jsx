@@ -367,7 +367,7 @@ export default function GroupDetailsPage() {
                 )}
 
                 {/* Mensaje informativo si no es miembro */}
-                {!isMember && user && (
+                {!isMember && user && group.visibilidad !== 'Open' && (
                     <div className="bg-gradient-to-r from-orange-900/30 to-orange-800/30 border border-orange-700/50 rounded-lg p-6 mb-6">
                         <div className="flex items-start gap-4">
                             <div className="flex-shrink-0">
@@ -381,18 +381,24 @@ export default function GroupDetailsPage() {
                                     {hasPendingRequest 
                                         ? 'Tu solicitud para unirte a este grupo está pendiente de aprobación por los moderadores. Te notificaremos cuando sea revisada.'
                                         : (group.visibilidad === 'Restricted' 
-                                            ? 'Este es un grupo restringido. Debes enviar una solicitud y ser aprobado por los moderadores para acceder al contenido completo.'
+                                            ? 'Este es un grupo restringido. Debes enviar una solicitud y ser aprobado por los moderadores para poder comentar y publicar.'
                                             : 'Este es un grupo cerrado. Solo puedes unirte mediante invitación de los moderadores.')}
                                 </p>
-                                {!hasPendingRequest && (
+                                {!hasPendingRequest && group.visibilidad === 'Restricted' && (
                                     <button 
                                         onClick={handleJoinGroup}
                                         disabled={joiningGroup}
                                         className="flex items-center gap-2 px-6 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
                                         <UserPlus size={18} />
-                                        {joiningGroup ? 'Enviando solicitud...' : (group.visibilidad === 'Restricted' ? 'Enviar Solicitud de Ingreso' : 'Solicitar Invitación')}
+                                        {joiningGroup ? 'Enviando solicitud...' : 'Enviar Solicitud de Ingreso'}
                                     </button>
+                                )}
+                                {!hasPendingRequest && group.visibilidad === 'Closed' && (
+                                    <div className="flex items-center gap-2 px-6 py-2 bg-gray-600/50 text-gray-200 rounded font-semibold">
+                                        <Shield size={18} />
+                                        Contacta a un moderador para obtener una invitación
+                                    </div>
                                 )}
                                 {hasPendingRequest && (
                                     <div className="flex items-center gap-2 px-6 py-2 bg-yellow-600/50 text-yellow-100 rounded font-semibold">
@@ -405,8 +411,35 @@ export default function GroupDetailsPage() {
                     </div>
                 )}
 
-                {/* Tabs - Solo visible para miembros */}
-                {isMember && (
+                {/* Banner para grupos abiertos cuando no eres miembro */}
+                {!isMember && user && group.visibilidad === 'Open' && (
+                    <div className="bg-gradient-to-r from-blue-900/30 to-blue-800/30 border border-blue-700/50 rounded-lg p-6 mb-6">
+                        <div className="flex items-start gap-4">
+                            <div className="flex-shrink-0">
+                                <Users className="text-blue-400" size={32} />
+                            </div>
+                            <div className="flex-1">
+                                <h3 className="text-xl font-bold text-white mb-2">
+                                    Grupo Abierto
+                                </h3>
+                                <p className="text-gray-300 mb-3">
+                                    Este es un grupo abierto. Puedes ver el contenido, pero necesitas unirte para poder comentar y publicar.
+                                </p>
+                                <button 
+                                    onClick={handleJoinGroup}
+                                    disabled={joiningGroup}
+                                    className="flex items-center gap-2 px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    <UserPlus size={18} />
+                                    {joiningGroup ? 'Uniéndose...' : 'Unirse al Grupo'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Tabs - Visible para miembros o en grupos abiertos */}
+                {(isMember || group.visibilidad === 'Open') && (
                 <>
                 <div className="flex flex-wrap gap-3 mb-6">
                     <button
@@ -477,7 +510,7 @@ export default function GroupDetailsPage() {
                     <div>
                         <div className="flex items-center justify-between mb-6">
                             <h2 className="text-2xl font-bold text-white">Foros de Discusión</h2>
-                            {isMember && isOwner && (
+                            {isMember && (
                                 <button
                                     onClick={() => setIsCreateForumModalOpen(true)}
                                     className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded transition-colors font-semibold"
@@ -1002,15 +1035,17 @@ export default function GroupDetailsPage() {
                             onSave={handleSaveGroupSettings}
                             onCancel={() => setActiveTab('forums')}
                             onDelete={handleDeleteGroup}
+                            onLeave={handleLeaveGroup}
                             isOwner={isOwner}
+                            memberCount={members.length}
                         />
                     </div>
                 )}
                 </>
                 )}
 
-                {/* Mensaje para no miembros */}
-                {!isMember && user && (
+                {/* Mensaje para no miembros en grupos cerrados o restringidos */}
+                {!isMember && user && group.visibilidad !== 'Open' && (
                     <div className="text-center py-12">
                         <Users className="mx-auto text-gray-500 mb-4" size={64} />
                         <h3 className="text-xl font-semibold text-white mb-2">

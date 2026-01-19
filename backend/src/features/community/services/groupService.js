@@ -402,32 +402,50 @@ export const groupService = {
             throw new Error('No eres miembro de este grupo');
         }
 
-        // Si es Owner, transferir propiedad
-        if (member.rol === 'Owner') {
-            await this.transferOwnership(groupId, userId);
-        }
-
-        // Eliminar del grupo
-        await supabase
-            .from('miembros_grupo')
-            .update({ deleted_at: new Date().toISOString() })
-            .eq('id_grupo', groupId)
-            .eq('id_perfil', userId);
-
-        // RG-006 - Verificar si el grupo quedó sin miembros
-        const { count } = await supabase
+        // Contar cuántos miembros activos hay antes de salir
+        const { count: memberCountBefore } = await supabase
             .from('miembros_grupo')
             .select('id', { count: 'exact' })
             .eq('id_grupo', groupId)
             .eq('estado_membresia', 'activo')
             .is('deleted_at', null);
 
-        if (count === 0) {
-            // Eliminar el grupo automáticamente
-            await supabase
+        // Si es Owner y hay otros miembros, transferir propiedad
+        if (member.rol === 'Owner' && memberCountBefore > 1) {
+            await this.transferOwnership(groupId, userId);
+        }
+
+        // Eliminar del grupo
+        const { error: deleteMemberError } = await supabase
+            .from('miembros_grupo')
+            .update({ deleted_at: new Date().toISOString() })
+            .eq('id_grupo', groupId)
+            .eq('id_perfil', userId);
+
+        if (deleteMemberError) {
+            console.error('[GROUP] Error removing member:', deleteMemberError);
+            throw new Error('Error al abandonar el grupo');
+        }
+
+        // Si era el único miembro, eliminar el grupo automáticamente
+        if (memberCountBefore === 1) {
+            const timestamp = new Date().toISOString();
+            const { error: deleteGroupError } = await supabase
                 .from('grupos')
-                .update({ deleted_at: new Date().toISOString(), estado: 'eliminado' })
-                .eq('id', groupId);
+                .update({ 
+                    deleted_at: timestamp,
+                    estado: 'inactivo',
+                    updated_at: timestamp
+                })
+                .eq('id', groupId)
+                .is('deleted_at', null);
+
+            if (deleteGroupError) {
+                console.error('[GROUP] Error marking group as inactive:', deleteGroupError);
+                throw new Error('Error al desactivar el grupo');
+            }
+
+            console.log(`[GROUP] Group ${groupId} marked as inactive (no members left)`);
         }
 
         return { success: true };
@@ -437,21 +455,22 @@ export const groupService = {
      * RG-008 - Transferir propiedad del grupo
      */
     async transferOwnership(groupId, currentOwnerId) {
-        // Buscar el siguiente en la jerarquía
-        const { data: candidates, error: candidatesError } = await supabase
+        // Buscar primero Moderators (por antigüedad)
+        const { data: moderators, error: moderatorError } = await supabase
             .from('miembros_grupo')
             .select('id_perfil, rol, fecha_union')
             .eq('id_grupo', groupId)
+            .eq('rol', 'Moderator')
             .eq('estado_membresia', 'activo')
             .neq('id_perfil', currentOwnerId)
             .is('deleted_at', null)
-            .order('rol', { ascending: true }) // Moderator antes que Member
             .order('fecha_union', { ascending: true }); // Más antiguo primero
 
-        if (candidatesError) throw candidatesError;
+        if (moderatorError) throw moderatorError;
 
-        if (candidates && candidates.length > 0) {
-            const newOwner = candidates[0];
+        // Si hay moderadores, elegir el más antiguo
+        if (moderators && moderators.length > 0) {
+            const newOwner = moderators[0];
 
             // Degradar al Owner actual a Member
             await supabase
@@ -467,6 +486,42 @@ export const groupService = {
                 .eq('id_grupo', groupId)
                 .eq('id_perfil', newOwner.id_perfil);
 
+            console.log(`[GROUP] Ownership transferred from ${currentOwnerId} to Moderator ${newOwner.id_perfil}`);
+            return newOwner.id_perfil;
+        }
+
+        // Si no hay moderadores, buscar Members (por antigüedad)
+        const { data: members, error: memberError } = await supabase
+            .from('miembros_grupo')
+            .select('id_perfil, rol, fecha_union')
+            .eq('id_grupo', groupId)
+            .eq('rol', 'Member')
+            .eq('estado_membresia', 'activo')
+            .neq('id_perfil', currentOwnerId)
+            .is('deleted_at', null)
+            .order('fecha_union', { ascending: true }); // Más antiguo primero
+
+        if (memberError) throw memberError;
+
+        // Si hay miembros, elegir el más antiguo
+        if (members && members.length > 0) {
+            const newOwner = members[0];
+
+            // Degradar al Owner actual a Member
+            await supabase
+                .from('miembros_grupo')
+                .update({ rol: 'Member' })
+                .eq('id_grupo', groupId)
+                .eq('id_perfil', currentOwnerId);
+
+            // Promover al nuevo Owner
+            await supabase
+                .from('miembros_grupo')
+                .update({ rol: 'Owner' })
+                .eq('id_grupo', groupId)
+                .eq('id_perfil', newOwner.id_perfil);
+
+            console.log(`[GROUP] Ownership transferred from ${currentOwnerId} to Member ${newOwner.id_perfil}`);
             return newOwner.id_perfil;
         }
 
@@ -614,6 +669,24 @@ export const groupService = {
      * Obtener solicitudes de unión pendientes (Owner y Moderator)
      */
     async getPendingRequests(userId, groupId) {
+        // Primero verificar el tipo de grupo
+        const { data: grupo, error: groupError } = await supabase
+            .from('grupos')
+            .select('visibilidad')
+            .eq('id', groupId)
+            .eq('estado', 'activo')
+            .is('deleted_at', null)
+            .single();
+
+        if (groupError || !grupo) {
+            throw new Error('Grupo no encontrado');
+        }
+
+        // Los grupos abiertos no tienen solicitudes pendientes
+        if (grupo.visibilidad === 'Open') {
+            return [];
+        }
+
         // Verificar permisos (solo Owner y Moderator pueden ver solicitudes)
         const { data: member, error: memberError } = await supabase
             .from('miembros_grupo')
@@ -862,7 +935,7 @@ export const groupService = {
                 rol,
                 estado_membresia,
                 fecha_union,
-                grupos (
+                grupos!inner (
                     id,
                     nombre,
                     descripcion,
@@ -874,7 +947,9 @@ export const groupService = {
             `)
             .eq('id_perfil', userId)
             .eq('estado_membresia', 'activo')
+            .eq('grupos.estado', 'activo')
             .is('deleted_at', null)
+            .is('grupos.deleted_at', null)
             .order('fecha_union', { ascending: false });
 
         if (error) throw error;
@@ -891,6 +966,7 @@ export const groupService = {
             .from('grupos')
             .select('*')
             .eq('id', groupId)
+            .eq('estado', 'activo')
             .is('deleted_at', null)
             .single();
 
@@ -953,6 +1029,7 @@ export const groupService = {
             .from('grupos')
             .select('visibilidad')
             .eq('id', groupId)
+            .eq('estado', 'activo')
             .is('deleted_at', null)
             .single();
 
@@ -961,7 +1038,11 @@ export const groupService = {
         }
 
         // Si el grupo es Closed o Restricted, verificar membresía
-        if (grupo.visibilidad !== 'Open' && userId) {
+        if (grupo.visibilidad !== 'Open') {
+            if (!userId) {
+                throw new Error('Debes iniciar sesión para ver los miembros');
+            }
+            
             const { data: membership } = await supabase
                 .from('miembros_grupo')
                 .select('id')

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Upload, Save, AlertCircle, Trash2 } from 'lucide-react';
 
-export default function GroupSettingsForm({ group, onSave, onCancel, onDelete, isOwner }) {
+export default function GroupSettingsForm({ group, onSave, onCancel, onDelete, onLeave, isOwner, memberCount = 1 }) {
     const [formData, setFormData] = useState({
         nombre: group?.nombre || '',
         descripcion: group?.descripcion || '',
@@ -13,6 +13,8 @@ export default function GroupSettingsForm({ group, onSave, onCancel, onDelete, i
     const [previewImage, setPreviewImage] = useState(group?.avatar_url || null);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [deleteLoading, setDeleteLoading] = useState(false);
+    const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+    const [leaveLoading, setLeaveLoading] = useState(false);
 
     const visibilityOptions = [
         {
@@ -134,6 +136,28 @@ export default function GroupSettingsForm({ group, onSave, onCancel, onDelete, i
 
     const handleDeleteCancel = () => {
         setShowDeleteConfirm(false);
+    };
+
+    const handleLeaveClick = () => {
+        setShowLeaveConfirm(true);
+    };
+
+    const handleLeaveConfirm = async () => {
+        if (!onLeave) return;
+
+        setLeaveLoading(true);
+        try {
+            await onLeave();
+        } catch (error) {
+            setErrors({ leave: error.message });
+        } finally {
+            setLeaveLoading(false);
+            setShowLeaveConfirm(false);
+        }
+    };
+
+    const handleLeaveCancel = () => {
+        setShowLeaveConfirm(false);
     };
 
     return (
@@ -277,17 +301,31 @@ export default function GroupSettingsForm({ group, onSave, onCancel, onDelete, i
 
             {/* Actions */}
             <div className="flex items-center justify-between pt-4 border-t border-[#2a475e]">
-                {/* Botón Borrar Grupo (solo Owner) */}
-                {isOwner && onDelete && (
-                    <button
-                        type="button"
-                        onClick={handleDeleteClick}
-                        className="flex items-center gap-2 px-6 py-2 bg-red-600 hover:bg-red-500 text-white rounded transition-colors font-semibold"
-                    >
-                        <Trash2 size={18} />
-                        <span>Borrar Grupo</span>
-                    </button>
-                )}
+                {/* Botones de acciones peligrosas */}
+                <div className="flex items-center gap-3">
+                    {/* Botón Abandonar Grupo */}
+                    {onLeave && (
+                        <button
+                            type="button"
+                            onClick={handleLeaveClick}
+                            className="flex items-center gap-2 px-6 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded transition-colors font-semibold"
+                        >
+                            <Trash2 size={18} />
+                            <span>Abandonar Grupo</span>
+                        </button>
+                    )}
+                    {/* Botón Borrar Grupo (solo Owner) */}
+                    {isOwner && onDelete && (
+                        <button
+                            type="button"
+                            onClick={handleDeleteClick}
+                            className="flex items-center gap-2 px-6 py-2 bg-red-600 hover:bg-red-500 text-white rounded transition-colors font-semibold"
+                        >
+                            <Trash2 size={18} />
+                            <span>Borrar Grupo</span>
+                        </button>
+                    )}
+                </div>
                 
                 <div className={`flex items-center gap-3 ${!isOwner || !onDelete ? 'ml-auto' : ''}`}>
                     <button
@@ -321,6 +359,77 @@ export default function GroupSettingsForm({ group, onSave, onCancel, onDelete, i
                     </button>
                 </div>
             </div>
+
+            {/* Modal de Confirmación para Abandonar Grupo */}
+            {showLeaveConfirm && (
+                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+                    <div className="bg-[#1b2838] rounded-lg p-6 max-w-md w-full border-2 border-orange-500">
+                        <div className="flex items-start gap-4 mb-4">
+                            <div className="bg-orange-500/10 p-3 rounded-full">
+                                <AlertCircle className="text-orange-500" size={28} />
+                            </div>
+                            <div className="flex-1">
+                                <h3 className="text-xl font-bold text-white mb-2">
+                                    ¿Abandonar grupo?
+                                </h3>
+                                {memberCount <= 1 ? (
+                                    <p className="text-gray-300 text-sm mb-2">
+                                        <strong className="text-orange-400">Si no hay nadie más en el grupo, el mismo será eliminado.</strong>
+                                    </p>
+                                ) : isOwner ? (
+                                    <>
+                                        <p className="text-gray-300 text-sm mb-2">
+                                            <strong className="text-orange-400">Si sales del grupo, el dueño se transferirá automáticamente.</strong>
+                                        </p>
+                                        <p className="text-gray-300 text-sm">
+                                            El sistema transferirá la propiedad del grupo al miembro con más rango disponible (Moderator). Si hay varios con el mismo rango, se elegirá al miembro con más antigüedad en el grupo.
+                                        </p>
+                                    </>
+                                ) : (
+                                    <p className="text-gray-300 text-sm">
+                                        Ya no podrás acceder al contenido del grupo ni participar en las discusiones.
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+
+                        {errors.leave && (
+                            <div className="bg-red-500/10 border border-red-500 rounded p-3 mb-4">
+                                <p className="text-red-400 text-sm">{errors.leave}</p>
+                            </div>
+                        )}
+
+                        <div className="flex items-center gap-3 justify-end">
+                            <button
+                                type="button"
+                                onClick={handleLeaveCancel}
+                                disabled={leaveLoading}
+                                className="px-6 py-2 bg-[#2a475e] hover:bg-[#3a576e] text-white rounded transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleLeaveConfirm}
+                                disabled={leaveLoading}
+                                className="flex items-center gap-2 px-6 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {leaveLoading ? (
+                                    <>
+                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                        <span>Abandonando...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Trash2 size={18} />
+                                        <span>Abandonar Grupo</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Modal de Confirmación de Eliminación */}
             {showDeleteConfirm && (

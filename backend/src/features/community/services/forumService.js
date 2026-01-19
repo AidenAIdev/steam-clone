@@ -356,6 +356,7 @@ export const forumService = {
             .from('grupos')
             .select('visibilidad')
             .eq('id', groupId)
+            .eq('estado', 'activo')
             .is('deleted_at', null)
             .single();
 
@@ -551,6 +552,7 @@ export const forumService = {
             .from('grupos')
             .select('visibilidad')
             .eq('id', groupId)
+            .eq('estado', 'activo')
             .is('deleted_at', null)
             .single();
 
@@ -558,8 +560,12 @@ export const forumService = {
             throw new Error('Grupo no encontrado');
         }
 
-        // Si el grupo no es público, verificar membresía
-        if (grupo.visibilidad !== 'Open' && userId) {
+        // Si el grupo no es Open, verificar membresía
+        if (grupo.visibilidad !== 'Open') {
+            if (!userId) {
+                throw new Error('Debes iniciar sesión para ver este grupo');
+            }
+            
             const { data: member } = await supabase
                 .from('miembros_grupo')
                 .select('id')
@@ -613,7 +619,7 @@ export const forumService = {
      * Crear un nuevo foro en un grupo (solo Owner)
      */
     async createForum(userId, groupId, forumData) {
-        // Verificar que el usuario es Owner del grupo
+        // Verificar que el usuario es miembro del grupo
         const { data: member, error: memberError } = await supabase
             .from('miembros_grupo')
             .select('rol')
@@ -627,9 +633,7 @@ export const forumService = {
             throw new Error('No eres miembro de este grupo');
         }
 
-        if (member.rol !== 'Owner') {
-            throw new Error('Solo el dueño del grupo puede crear foros');
-        }
+        // Cualquier miembro puede crear foros
 
         // Crear el foro
         const { data: foro, error: foroError } = await supabase

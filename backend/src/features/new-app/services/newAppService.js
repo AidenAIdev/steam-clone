@@ -138,7 +138,7 @@ export const newAppService = {
         descripcion_corta: datosApp.descripcion_corta || null,
         descripcion_larga: datosApp.descripcion_larga || null,
         categoria_id: datosApp.categoria_id || null,
-        pago_registro_completado: false, // Se actualizará cuando se confirme el pago
+        pago_registro_completado: true, // Se actualizará cuando se confirme el pago
         monto_pago_registro: 100.00,
       };
 

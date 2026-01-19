@@ -30,6 +30,10 @@ import registerCommunityRoutes from './src/features/community/index.js';
 // Import game keys routes (Grupo 2 - Gestión de Llaves)
 import { gameKeysRoutes } from './src/features/game-keys/index.js';
 
+
+// Import pricing routes (Grupo 2 - Gestión de Precios)
+import { pricingRoutes } from './src/features/pricing/index.js';
+
 // Import new app routes (Creación de Aplicaciones - RF-004)
 import { newAppRoutes } from './src/features/new-app/index.js';
 import { appItemsRoutes } from './src/features/app-items/index.js';
@@ -102,12 +106,17 @@ app.use('/api/desarrolladores/perfil', apiLimiter, developerProfileRoutes);
 // Game Keys routes (Santiago - Gestión de Llaves de Juego)
 app.use('/api/game-keys', gameKeysRoutes);
 
+
+// Pricing routes (Grupo 2 - Gestión de Precios RF-010)
+app.use('/api/pricing', pricingRoutes);
+
 // New App routes (Creación de Aplicaciones - RF-004)
 app.use('/api/new-app', newAppRoutes);
 app.use('/api/app-items', apiLimiter, appItemsRoutes);
 
 // My Apps routes (Mis Aplicaciones - Steamworks Dashboard)
 app.use('/api/my-apps', apiLimiter, myAppsRoutes);
+
 
 // Admin routes
 app.use('/api/admin', apiLimiter, adminRoutes);

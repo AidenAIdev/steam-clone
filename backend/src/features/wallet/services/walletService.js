@@ -1,4 +1,5 @@
 import { supabaseAdmin as supabase } from '../../../shared/config/supabase.js';
+import { limitedAccountService } from '../../../shared/services/limitedAccountService.js';
 
 /**
  * Wallet Service
@@ -195,7 +196,7 @@ export const walletService = {
             if (dailyTotal + amount > this.LIMITS.MAX_DAILY_RELOAD) {
                 const remaining = this.LIMITS.MAX_DAILY_RELOAD - dailyTotal;
                 throw new Error(
-                    `Has alcanzado el límite diario de recarga. ` +
+                    'Has alcanzado el límite diario de recarga. ' +
                     `Puedes recargar hasta $${remaining.toFixed(2)} más hoy.`
                 );
             }
@@ -220,10 +221,15 @@ export const walletService = {
                 throw new Error(error.message || 'Error al procesar la recarga');
             }
 
+            // Intentar desbloquear cuenta si cumple requisitos
+            const unlockResult = await limitedAccountService.unlockAccountIfEligible(userId);
+
             return {
                 success: true,
                 newBalance: data.new_balance,
-                transactionId: data.transaction_id
+                transactionId: data.transaction_id,
+                accountUnlocked: unlockResult.justUnlocked || false,
+                unlockMessage: unlockResult.justUnlocked ? unlockResult.message : null
             };
         } finally {
             // Liberar el bloqueo después de un tiempo
@@ -316,10 +322,15 @@ export const walletService = {
             })
             .eq('id', transaction.id);
 
+        // Intentar desbloquear cuenta si cumple requisitos
+        const unlockResult = await limitedAccountService.unlockAccountIfEligible(userId);
+
         return {
             success: true,
             newBalance: newBalance,
-            transactionId: transaction.id
+            transactionId: transaction.id,
+            accountUnlocked: unlockResult.justUnlocked || false,
+            unlockMessage: unlockResult.justUnlocked ? unlockResult.message : null
         };
     },
 

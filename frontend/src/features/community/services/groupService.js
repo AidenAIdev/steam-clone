@@ -69,6 +69,18 @@ export const groupService = {
         return data;
     },
 
+    // Eliminar grupo
+    async deleteGroup(groupId) {
+        const response = await fetch(`${API_URL}/groups/${groupId}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message);
+        return data;
+    },
+
     // Unirse a un grupo
     async joinGroup(groupId) {
         const response = await fetch(`${API_URL}/groups/${groupId}/join`, {
@@ -147,6 +159,18 @@ export const groupService = {
         return data;
     },
 
+    // Obtener solicitudes pendientes
+    async getPendingRequests(groupId) {
+        const response = await fetch(`${API_URL}/groups/${groupId}/requests`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message);
+        return data;
+    },
+
     // Aprobar/rechazar solicitud
     async handleJoinRequest(groupId, requestId, approve) {
         const response = await fetch(`${API_URL}/groups/${groupId}/requests/${requestId}`, {
@@ -154,6 +178,20 @@ export const groupService = {
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
             body: JSON.stringify({ approve })
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message);
+        return data;
+    },
+
+    // Invitar usuario al grupo
+    async inviteUser(groupId, targetUserId) {
+        const response = await fetch(`${API_URL}/groups/${groupId}/invite`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ targetUserId })
         });
 
         const data = await response.json();

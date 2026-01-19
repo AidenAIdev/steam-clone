@@ -93,6 +93,7 @@ export function useGroups() {
 export function useGroupDetails(groupId) {
     const [group, setGroup] = useState(null);
     const [members, setMembers] = useState([]);
+    const [pendingRequests, setPendingRequests] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
@@ -121,6 +122,23 @@ export function useGroupDetails(groupId) {
         try {
             const response = await groupService.getGroupMembers(groupId);
             setMembers(response.data || []);
+            return response.data;
+        } catch (err) {
+            setError(err.message);
+            throw err;
+        } finally {
+            setLoading(false);
+        }
+    }, [groupId]);
+
+    const fetchPendingRequests = useCallback(async () => {
+        if (!groupId) return;
+        
+        setLoading(true);
+        setError(null);
+        try {
+            const response = await groupService.getPendingRequests(groupId);
+            setPendingRequests(response.data || []);
             return response.data;
         } catch (err) {
             setError(err.message);
@@ -186,16 +204,48 @@ export function useGroupDetails(groupId) {
         }
     }, [groupId]);
 
+    const handleJoinRequest = useCallback(async (requestId, approve) => {
+        setLoading(true);
+        setError(null);
+        try {
+            await groupService.handleJoinRequest(groupId, requestId, approve);
+            await fetchPendingRequests(); // Refresh pending requests
+        } catch (err) {
+            setError(err.message);
+            throw err;
+        } finally {
+            setLoading(false);
+        }
+    }, [groupId, fetchPendingRequests]);
+
+    const deleteGroup = useCallback(async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            await groupService.deleteGroup(groupId);
+            return true;
+        } catch (err) {
+            setError(err.message);
+            throw err;
+        } finally {
+            setLoading(false);
+        }
+    }, [groupId]);
+
     return {
         group,
         members,
+        pendingRequests,
         loading,
         error,
         fetchGroupDetails,
         fetchMembers,
+        fetchPendingRequests,
         updateGroup,
         updateMemberRole,
         toggleMemberBan,
-        inviteUser
+        inviteUser,
+        handleJoinRequest,
+        deleteGroup
     };
 }

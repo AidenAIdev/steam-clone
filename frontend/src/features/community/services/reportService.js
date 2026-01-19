@@ -39,5 +39,31 @@ export const reportService = {
         const data = await response.json();
         if (!response.ok) throw new Error(data.message);
         return data;
+    },
+
+    // Crear nuevo reporte
+    async createReport(groupId, reportData) {
+        const response = await fetch(`${API_URL}/${groupId}/reports`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(reportData)
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message);
+        return data;
+    },
+
+    // Revocar baneo
+    async revokeBan(groupId, userId) {
+        const response = await fetch(`${API_URL}/${groupId}/members/${userId}/revoke-ban`, {
+            method: 'POST',
+            credentials: 'include'
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message);
+        return data;
     }
 };

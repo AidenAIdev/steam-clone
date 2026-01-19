@@ -9,6 +9,49 @@ import {
     registrarDesbanearUsuario
 } from '../utils/auditLogger.js';
 
+/**
+ * Helper: Verificar si un usuario está baneado del grupo
+ */
+async function checkUserBanStatus(userId, groupId) {
+    if (!userId) return { isBanned: false };
+
+    const { data: member } = await supabase
+        .from('miembros_grupo')
+        .select('estado_membresia, fecha_fin_baneo')
+        .eq('id_grupo', groupId)
+        .eq('id_perfil', userId)
+        .is('deleted_at', null)
+        .single();
+
+    if (!member) return { isBanned: false };
+
+    // Verificar si el baneo ha expirado
+    if (member.estado_membresia === 'baneado' && member.fecha_fin_baneo) {
+        const banEndDate = new Date(member.fecha_fin_baneo);
+        const now = new Date();
+        
+        if (now >= banEndDate) {
+            // Baneo expirado, actualizar
+            await supabase
+                .from('miembros_grupo')
+                .update({
+                    estado_membresia: 'activo',
+                    fecha_fin_baneo: null,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id_grupo', groupId)
+                .eq('id_perfil', userId);
+            
+            return { isBanned: false };
+        }
+    }
+
+    return { 
+        isBanned: member.estado_membresia === 'baneado',
+        member 
+    };
+}
+
 export const groupService = {
     /**
      * RG-001a - Crear un nuevo grupo
@@ -1128,6 +1171,12 @@ export const groupService = {
 
         if (!grupo) {
             throw new Error('Grupo no encontrado');
+        }
+
+        // Verificar si el usuario está baneado (incluso en grupos Open)
+        const { isBanned } = await checkUserBanStatus(userId, groupId);
+        if (isBanned) {
+            throw new Error('Has sido baneado de este grupo');
         }
 
         // Si el grupo es Closed o Restricted, verificar membresía

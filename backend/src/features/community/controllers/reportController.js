@@ -64,5 +64,49 @@ export const reportController = {
                 message: error.message || 'Error al rechazar reporte'
             });
         }
+    },
+
+    // Crear nuevo reporte
+    async createReport(req, res) {
+        try {
+            const userId = req.user.id;
+            const { groupId } = req.params;
+            const reportData = req.body;
+
+            const report = await reportService.createReport(userId, groupId, reportData);
+
+            res.status(201).json({
+                success: true,
+                data: report,
+                message: 'Reporte creado exitosamente'
+            });
+        } catch (error) {
+            console.error('[REPORTS] Error creating report:', error);
+            res.status(400).json({
+                success: false,
+                message: error.message || 'Error al crear reporte'
+            });
+        }
+    },
+
+    // Revocar baneo de usuario
+    async revokeBan(req, res) {
+        try {
+            const userId = req.user.id;
+            const { groupId, userId: bannedUserId } = req.params;
+
+            const result = await reportService.revokeBan(userId, groupId, bannedUserId);
+
+            res.json({
+                success: true,
+                message: result.message
+            });
+        } catch (error) {
+            console.error('[REPORTS] Error revoking ban:', error);
+            res.status(400).json({
+                success: false,
+                message: error.message || 'Error al revocar baneo'
+            });
+        }
     }
 };

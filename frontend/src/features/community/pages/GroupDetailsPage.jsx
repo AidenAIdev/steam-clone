@@ -684,15 +684,14 @@ export default function GroupDetailsPage() {
                                             </Link>
                                             <div className="flex items-center gap-2">
                                                 <MessageSquare className="text-gray-500 group-hover:text-blue-400 transition-colors" size={24} />
-                                                {isMember && (
-                                                    <ForumActions
-                                                        forum={forum}
-                                                        userRole={userRole}
-                                                        groupId={groupId}
-                                                        onToggleStatus={(close) => handleToggleForumStatus(forum.id, close)}
-                                                        onDelete={() => handleDeleteForum(forum.id)}
-                                                    />
-                                                )}
+                                                <ForumActions
+                                                    forum={forum}
+                                                    userRole={userRole}
+                                                    groupId={groupId}
+                                                    userId={user?.id}
+                                                    onToggleStatus={(close) => handleToggleForumStatus(forum.id, close)}
+                                                    onDelete={() => handleDeleteForum(forum.id)}
+                                                />
                                             </div>
                                         </div>
                                     </div>

@@ -13,6 +13,7 @@ import { MFAVerificationModal } from '../components/MFAVerificationModal';
 import { developerProfileService } from '../services/developerProfileService';
 import { NuevaAppPage } from '../../new-app/pages';
 import { ConfiguracionTiendaPage } from '../../store-config/pages';
+import { AppItemsPage } from '../../app-items/pages/AppItemsPage';
 
 export const SteamworksDashboardPage = () => {
   const navigate = useNavigate();
@@ -319,6 +320,11 @@ export const SteamworksDashboardPage = () => {
         return (
           <div className='max-w-7xl mx-auto px-4 py-8'>
             <ConfiguracionTiendaPage />
+            
+      case 'objetos-marketplace':
+        return (
+          <div className='max-w-7xl mx-auto px-4 py-8'>
+            <AppItemsPage />
           </div>
         );
 

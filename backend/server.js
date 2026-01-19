@@ -17,6 +17,7 @@ import { adminRoutes } from './src/features/admin/index.js';
 // Import inventory routes (Esteban - Gestión de Inventario)
 import { inventoryRoutes } from './src/features/inventory/index.js';
 import { tradeRoutes } from './src/features/inventory/index.js';
+import { privacyRoutes } from './src/features/inventory/index.js';
 
 // Import wallet routes (Gestión de Billetera)
 import { walletRoutes } from './src/features/wallet/index.js';
@@ -24,11 +25,14 @@ import { walletRoutes } from './src/features/wallet/index.js';
 // Import MFA routes
 import mfaRoutes from './src/features/mfa/routes/mfaRoutes.js';
 
+// Import community routes
+import registerCommunityRoutes from './src/features/community/index.js';
 // Import game keys routes (Grupo 2 - Gestión de Llaves)
 import { gameKeysRoutes } from './src/features/game-keys/index.js';
 
 // Import new app routes (Creación de Aplicaciones - RF-004)
 import { newAppRoutes } from './src/features/new-app/index.js';
+import { appItemsRoutes } from './src/features/app-items/index.js';
 
 // Import security middleware (Grupo 2 - Seguridad)
 import {
@@ -97,6 +101,7 @@ app.use('/api/game-keys', gameKeysRoutes);
 
 // New App routes (Creación de Aplicaciones - RF-004)
 app.use('/api/new-app', newAppRoutes);
+app.use('/api/app-items', apiLimiter, appItemsRoutes);
 
 // Admin routes
 app.use('/api/admin', apiLimiter, adminRoutes);
@@ -104,11 +109,20 @@ app.use('/api/admin', apiLimiter, adminRoutes);
 // MFA routes
 app.use('/api/mfa', apiLimiter, mfaRoutes);
 
+// Community routes
+registerCommunityRoutes(app);
 // Wallet routes (Gestión de Billetera)
 app.use('/api/wallet', apiLimiter, walletRoutes);
 
 // Inventory routes (Esteban - Gestión de Inventario)
 app.use('/api/inventory', inventoryRoutes);
+
+// Trade routes
+app.use('/api/trade', tradeRoutes);
+
+// Privacy routes (Configuración de privacidad)
+app.use('/api/privacy', apiLimiter, privacyRoutes);
+
 // Datos de ejemplo
 const games = [
   {

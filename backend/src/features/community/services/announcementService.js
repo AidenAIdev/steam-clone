@@ -1,4 +1,5 @@
 import { supabaseAdmin as supabase } from '../../../shared/config/supabase.js';
+import { notificationService } from '../../../shared/services/notificationService.js';
 
 export const announcementService = {
     /**
@@ -50,8 +51,8 @@ export const announcementService = {
 
         if (announcementError) throw announcementError;
 
-        // TODO: Aquí se debería enviar notificaciones a todos los miembros
-        // Por ahora solo retornamos el anuncio creado
+        // Enviar notificaciones a todos los miembros del grupo
+        await notificationService.notifyGroupAnnouncement(groupId, announcement.id, userId);
         
         return announcement;
     },

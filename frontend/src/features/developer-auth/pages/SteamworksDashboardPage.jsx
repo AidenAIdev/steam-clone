@@ -71,18 +71,18 @@ export const SteamworksDashboardPage = () => {
 
   // RF-003: Validación de 5 días desde última modificación
   const canEditProfile = () => {
-    if (!desarrollador?.ultima_modificacion) {
+    if (!desarrollador?.ultima_actualizacion_datos) {
       return true; // Primera vez, puede editar
     }
-    const lastUpdate = new Date(desarrollador.ultima_modificacion);
+    const lastUpdate = new Date(desarrollador.ultima_actualizacion_datos);
     const now = new Date();
     const diffDays = Math.floor((now - lastUpdate) / (1000 * 60 * 60 * 24));
     return diffDays >= 5;
   };
 
   const getDaysUntilEdit = () => {
-    if (!desarrollador?.ultima_modificacion) return 0;
-    const lastUpdate = new Date(desarrollador.ultima_modificacion);
+    if (!desarrollador?.ultima_actualizacion_datos) return 0;
+    const lastUpdate = new Date(desarrollador.ultima_actualizacion_datos);
     const now = new Date();
     const diffDays = Math.floor((now - lastUpdate) / (1000 * 60 * 60 * 24));
     return Math.max(0, 5 - diffDays);

@@ -15,6 +15,10 @@ import {
   RegisterDesarrolladorPage,
   SteamworksDashboardPage,
   EditarPerfilPage,
+  SteamworksTermsPage,
+  SteamworksDistributionAgreementPage,
+  SteamworksContentPolicyPage,
+  SteamworksPrivacyPolicyPage,
   ProtectedDeveloperRoute,
   DeveloperAuthProvider,
 } from './features/developer-auth';
@@ -183,6 +187,22 @@ function App() {
             <RegisterDesarrolladorPage />
           </DeveloperAuthProvider>
         }
+      />
+      <Route
+        path='/steamworks/terminos'
+        element={<SteamworksTermsPage />}
+      />
+      <Route
+        path='/steamworks/acuerdo-distribucion'
+        element={<SteamworksDistributionAgreementPage />}
+      />
+      <Route
+        path='/steamworks/politicas-contenido'
+        element={<SteamworksContentPolicyPage />}
+      />
+      <Route
+        path='/steamworks/privacidad'
+        element={<SteamworksPrivacyPolicyPage />}
       />
       <Route
         path='/steamworks/dashboard'

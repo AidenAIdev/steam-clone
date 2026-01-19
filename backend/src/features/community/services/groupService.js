@@ -1,6 +1,7 @@
 import { supabaseAdmin as supabase } from '../../../shared/config/supabase.js';
 import { notificationService } from '../../../shared/services/notificationService.js';
 import { consentService } from './consentService.js';
+import { permissionService, PERMISOS } from './permissionService.js';
 import { 
     registrarCrearGrupo, 
     registrarEliminarGrupo, 
@@ -147,22 +148,15 @@ export const groupService = {
      * RG-001b - Editar grupo (solo Owner)
      */
     async updateGroup(userId, groupId, updateData, ipAddress = null) {
-        // Verificar que el usuario es Owner del grupo
-        const { data: member, error: memberError } = await supabase
-            .from('miembros_grupo')
-            .select('rol')
-            .eq('id_grupo', groupId)
-            .eq('id_perfil', userId)
-            .eq('estado_membresia', 'activo')
-            .is('deleted_at', null)
-            .single();
+        // Verificar permiso de editar metadatos
+        const { tienePermiso, error: permisoError } = await permissionService.tienePermiso(
+            userId, 
+            groupId, 
+            PERMISOS.EDITAR_METADATOS
+        );
 
-        if (memberError || !member) {
-            throw new Error('No eres miembro de este grupo');
-        }
-
-        if (member.rol !== 'Owner') {
-            throw new Error('Solo el dueño puede editar el grupo');
+        if (permisoError || !tienePermiso) {
+            throw new Error(permisoError || 'No tienes permisos para editar este grupo');
         }
 
         // Validar visibilidad si se proporciona
@@ -630,6 +624,18 @@ export const groupService = {
             throw new Error('No puedes cambiar tu propio rol como Owner');
         }
 
+        // Obtener rol actual antes de actualizar
+        const { data: targetMember } = await supabase
+            .from('miembros_grupo')
+            .select('rol')
+            .eq('id_grupo', groupId)
+            .eq('id_perfil', targetUserId)
+            .eq('estado_membresia', 'activo')
+            .is('deleted_at', null)
+            .single();
+
+        const rolAnterior = targetMember?.rol || 'Member';
+
         // Actualizar rol
         const { error: updateError } = await supabase
             .from('miembros_grupo')
@@ -642,7 +648,7 @@ export const groupService = {
         if (updateError) throw updateError;
 
         // Registrar log de auditoría
-        await registrarCambiarRangoMiembro(requesterId, groupId, targetUserId, newRole, ipAddress);
+        await registrarCambiarRangoMiembro(requesterId, groupId, targetUserId, rolAnterior, newRole, ipAddress);
 
         return { success: true };
     },
@@ -651,22 +657,15 @@ export const groupService = {
      * RG-006 - Banear/desbanear miembro (Owner y Moderator)
      */
     async banMember(requesterId, groupId, targetUserId, isBan = true, isPermanent = true, days = null, ipAddress = null) {
-        // Verificar permisos
-        const { data: requester, error: requesterError } = await supabase
-            .from('miembros_grupo')
-            .select('rol')
-            .eq('id_grupo', groupId)
-            .eq('id_perfil', requesterId)
-            .eq('estado_membresia', 'activo')
-            .is('deleted_at', null)
-            .single();
+        // Verificar permiso de banear usuario
+        const { tienePermiso, error: permisoError } = await permissionService.tienePermiso(
+            requesterId,
+            groupId,
+            PERMISOS.BANEAR_USUARIO
+        );
 
-        if (requesterError || !requester) {
-            throw new Error('No eres miembro de este grupo');
-        }
-
-        if (requester.rol !== 'Owner' && requester.rol !== 'Moderator') {
-            throw new Error('No tienes permisos para banear miembros');
+        if (permisoError || !tienePermiso) {
+            throw new Error(permisoError || 'No tienes permisos para banear miembros');
         }
 
         // No se puede banear al Owner
@@ -745,22 +744,15 @@ export const groupService = {
      * Expulsar miembro del grupo (solo Owner y Moderator)
      */
     async kickMember(requesterId, groupId, targetUserId, ipAddress = null) {
-        // Verificar permisos del solicitante
-        const { data: requester, error: requesterError } = await supabase
-            .from('miembros_grupo')
-            .select('rol')
-            .eq('id_grupo', groupId)
-            .eq('id_perfil', requesterId)
-            .eq('estado_membresia', 'activo')
-            .is('deleted_at', null)
-            .single();
+        // Verificar permiso de expulsar miembros
+        const { tienePermiso, rol, error: permisoError } = await permissionService.tienePermiso(
+            requesterId,
+            groupId,
+            PERMISOS.EXPULSAR_MIEMBROS
+        );
 
-        if (requesterError || !requester) {
-            throw new Error('No eres miembro de este grupo');
-        }
-
-        if (requester.rol !== 'Owner' && requester.rol !== 'Moderator') {
-            throw new Error('No tienes permisos para expulsar miembros');
+        if (permisoError || !tienePermiso) {
+            throw new Error(permisoError || 'No tienes permisos para expulsar miembros');
         }
 
         // Obtener información del miembro objetivo
@@ -880,22 +872,15 @@ export const groupService = {
      * Aprobar/rechazar solicitud de unión (Owner y Moderator)
      */
     async handleJoinRequest(requesterId, groupId, requestId, approve, ipAddress = null) {
-        // Verificar permisos
-        const { data: requester, error: requesterError } = await supabase
-            .from('miembros_grupo')
-            .select('rol')
-            .eq('id_grupo', groupId)
-            .eq('id_perfil', requesterId)
-            .eq('estado_membresia', 'activo')
-            .is('deleted_at', null)
-            .single();
+        // Verificar permiso de administrar solicitudes
+        const { tienePermiso, error: permisoError } = await permissionService.tienePermiso(
+            requesterId,
+            groupId,
+            PERMISOS.ADMINISTRAR_SOLICITUDES
+        );
 
-        if (requesterError || !requester) {
-            throw new Error('No eres miembro de este grupo');
-        }
-
-        if (requester.rol !== 'Owner' && requester.rol !== 'Moderator') {
-            throw new Error('No tienes permisos para gestionar solicitudes');
+        if (permisoError || !tienePermiso) {
+            throw new Error(permisoError || 'No tienes permisos para gestionar solicitudes');
         }
 
         // Obtener la solicitud
@@ -981,18 +966,15 @@ export const groupService = {
      * Invitar usuario al grupo (Miembros pueden invitar en grupos Open)
      */
     async inviteUser(requesterId, groupId, targetUserId) {
-        // Verificar que el requester es miembro
-        const { data: requester, error: requesterError } = await supabase
-            .from('miembros_grupo')
-            .select('rol')
-            .eq('id_grupo', groupId)
-            .eq('id_perfil', requesterId)
-            .eq('estado_membresia', 'activo')
-            .is('deleted_at', null)
-            .single();
+        // Verificar permiso de invitar miembros
+        const { tienePermiso, error: permisoError } = await permissionService.tienePermiso(
+            requesterId,
+            groupId,
+            PERMISOS.INVITAR_MIEMBROS
+        );
 
-        if (requesterError || !requester) {
-            throw new Error('No eres miembro de este grupo');
+        if (permisoError || !tienePermiso) {
+            throw new Error(permisoError || 'No tienes permisos para invitar miembros');
         }
 
         // Verificar visibilidad del grupo

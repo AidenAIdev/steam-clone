@@ -261,43 +261,45 @@ export default function GroupSettingsForm({ group, onSave, onCancel, onDelete, o
                 </p>
             </div>
 
-            {/* Visibilidad */}
-            <div className="bg-[#1b2838] rounded-lg p-6">
-                <label className="block text-sm font-semibold text-white mb-3">
-                    Visibilidad del Grupo *
-                </label>
-                <div className="space-y-3">
-                    {visibilityOptions.map((option) => (
-                        <label
-                            key={option.value}
-                            className={`flex items-start gap-3 p-4 rounded border-2 cursor-pointer transition-all ${
-                                formData.visibilidad === option.value
-                                    ? 'bg-blue-500/10 border-blue-500'
-                                    : 'bg-[#0d1117] border-[#2a475e] hover:border-[#3a576e]'
-                            }`}
-                        >
-                            <input
-                                type="radio"
-                                name="visibilidad"
-                                value={option.value}
-                                checked={formData.visibilidad === option.value}
-                                onChange={handleChange}
-                                className="mt-1 w-4 h-4 text-blue-600 border-gray-500 focus:ring-blue-500"
-                            />
-                            <div className="flex-1">
-                                <p className={`font-semibold ${
-                                    formData.visibilidad === option.value ? 'text-blue-400' : 'text-white'
-                                }`}>
-                                    {option.label}
-                                </p>
-                                <p className="text-sm text-gray-400 mt-1">
-                                    {option.description}
-                                </p>
-                            </div>
-                        </label>
-                    ))}
+            {/* Visibilidad - Solo para Owner */}
+            {isOwner && (
+                <div className="bg-[#1b2838] rounded-lg p-6">
+                    <label className="block text-sm font-semibold text-white mb-3">
+                        Visibilidad del Grupo *
+                    </label>
+                    <div className="space-y-3">
+                        {visibilityOptions.map((option) => (
+                            <label
+                                key={option.value}
+                                className={`flex items-start gap-3 p-4 rounded border-2 cursor-pointer transition-all ${
+                                    formData.visibilidad === option.value
+                                        ? 'bg-blue-500/10 border-blue-500'
+                                        : 'bg-[#0d1117] border-[#2a475e] hover:border-[#3a576e]'
+                                }`}
+                            >
+                                <input
+                                    type="radio"
+                                    name="visibilidad"
+                                    value={option.value}
+                                    checked={formData.visibilidad === option.value}
+                                    onChange={handleChange}
+                                    className="mt-1 w-4 h-4 text-blue-600 border-gray-500 focus:ring-blue-500"
+                                />
+                                <div className="flex-1">
+                                    <p className={`font-semibold ${
+                                        formData.visibilidad === option.value ? 'text-blue-400' : 'text-white'
+                                    }`}>
+                                        {option.label}
+                                    </p>
+                                    <p className="text-sm text-gray-400 mt-1">
+                                        {option.description}
+                                    </p>
+                                </div>
+                            </label>
+                        ))}
+                    </div>
                 </div>
-            </div>
+            )}
 
             {/* Actions */}
             <div className="flex items-center justify-between pt-4 border-t border-[#2a475e]">

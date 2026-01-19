@@ -13,6 +13,7 @@ import ForumActions from '../components/ForumActions';
 import InviteMemberModal from '../components/InviteMemberModal';
 import GroupConsentModal from '../components/GroupConsentModal';
 import CommunityReportsSection from '../components/CommunityReportsSection';
+import GroupPermissionsManager from '../components/GroupPermissionsManager';
 
 export default function GroupDetailsPage() {
     const { groupId } = useParams();
@@ -23,6 +24,8 @@ export default function GroupDetailsPage() {
     const [loadingForums, setLoadingForums] = useState(true);
     const [reports, setReports] = useState([]);
     const [loadingReports, setLoadingReports] = useState(false);
+    const [userPermissions, setUserPermissions] = useState({});
+    const [loadingPermissions, setLoadingPermissions] = useState(true);
     const [isCreateForumModalOpen, setIsCreateForumModalOpen] = useState(false);
     const [isCreateAnnouncementModalOpen, setIsCreateAnnouncementModalOpen] = useState(false);
     const [isInviteMemberModalOpen, setIsInviteMemberModalOpen] = useState(false);
@@ -78,6 +81,7 @@ export default function GroupDetailsPage() {
             fetchPendingRequests().catch((err) => console.log('No se pudieron cargar solicitudes:', err.message));
             fetchAnnouncements().catch((err) => console.log('No se pudieron cargar anuncios:', err.message));
             loadForums();
+            loadUserPermissions();
         };
         loadData();
     }, [fetchGroupDetails, fetchMembers, fetchPendingRequests, fetchAnnouncements, user]);
@@ -116,6 +120,39 @@ export default function GroupDetailsPage() {
             console.error('Error loading forums:', err);
         } finally {
             setLoadingForums(false);
+        }
+    };
+
+    const loadUserPermissions = async () => {
+        try {
+            setLoadingPermissions(true);
+            const API_URL = 'http://localhost:3000/api/community';
+            const response = await fetch(`${API_URL}/groups/${groupId}/permissions`, {
+                method: 'GET',
+                credentials: 'include'
+            });
+            
+            if (!response.ok) {
+                setUserPermissions({});
+                return;
+            }
+            
+            const data = await response.json();
+            
+            // Convertir array de permisos en objeto para fácil acceso
+            const permissionsMap = {};
+            if (data.permisos && Array.isArray(data.permisos)) {
+                data.permisos.forEach(p => {
+                    permissionsMap[p.permiso] = p.tienePermiso;
+                });
+            }
+            
+            setUserPermissions(permissionsMap);
+        } catch (err) {
+            console.error('Error loading user permissions:', err);
+            setUserPermissions({});
+        } finally {
+            setLoadingPermissions(false);
         }
     };
 
@@ -369,6 +406,10 @@ export default function GroupDetailsPage() {
     const hasPendingRequest = group.has_pending_request === true;
     const isOwner = userRole === 'Owner';
     const isModerator = userRole === 'Moderator' || isOwner;
+    const canEditMetadata = isOwner || userPermissions.editar_metadatos === true;
+    const canManageRequests = isOwner || userPermissions.administrar_solicitudes === true;
+    const canKickMembers = isOwner || userPermissions.expulsar_miembros === true;
+    const canInviteMembers = isOwner || userPermissions.invitar_miembros === true;
 
     // Obtener anuncio fijado (el backend ya filtra los expirados)
     const pinnedAnnouncement = announcements.find(a => a.fijado);
@@ -613,7 +654,7 @@ export default function GroupDetailsPage() {
                             </button>
                         </>
                     )}
-                    {isOwner && (
+                    {canEditMetadata && (
                         <button
                             onClick={() => setActiveTab('settings')}
                             className={`flex items-center gap-2 px-6 py-3 rounded font-semibold transition-all ${
@@ -706,7 +747,7 @@ export default function GroupDetailsPage() {
                         <div className="flex items-center justify-between mb-6">
                             <h2 className="text-2xl font-bold text-white">Miembros del Grupo</h2>
                             <div className="flex items-center gap-3">
-                                {isMember && (
+                                {canInviteMembers && (
                                     <button
                                         onClick={() => setIsInviteMemberModalOpen(true)}
                                         className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors font-semibold"
@@ -813,6 +854,7 @@ export default function GroupDetailsPage() {
                                                                 <option value="Moderator">Moderador</option>
                                                                 <option value="Member">Miembro</option>
                                                             </select>
+                                                            {canKickMembers && (
                                                             <div className="relative">
                                                                 <button
                                                                     onClick={(e) => {
@@ -834,6 +876,7 @@ export default function GroupDetailsPage() {
                                                                     </div>
                                                                 )}
                                                             </div>
+                                                            )}
                                                         </>
                                                     ) : (
                                                         getRoleBadge(member.rol)
@@ -881,7 +924,7 @@ export default function GroupDetailsPage() {
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-3">
-                                                    {isOwner || isModerator ? (
+                                                    {isOwner || canKickMembers ? (
                                                         <>
                                                             {isOwner && (
                                                                 <select
@@ -893,7 +936,7 @@ export default function GroupDetailsPage() {
                                                                     <option value="Moderator">Moderador</option>
                                                                 </select>
                                                             )}
-                                                            {!isOwner && isModerator && getRoleBadge(member.rol)}
+                                                            {!isOwner && canKickMembers && getRoleBadge(member.rol)}
                                                             <div className="relative">
                                                                 <button
                                                                     onClick={(e) => {
@@ -928,8 +971,8 @@ export default function GroupDetailsPage() {
                             </div>
                         )}
 
-                        {/* Aspirantes - Solo visible para todos los miembros en grupos Restricted */}
-                        {isMember && group.visibilidad === 'Restricted' && pendingRequests && pendingRequests.length > 0 && (
+                        {/* Aspirantes - Solo visible para usuarios con permiso administrar_solicitudes */}
+                        {canManageRequests && group.visibilidad === 'Restricted' && pendingRequests && pendingRequests.length > 0 && (
                             <div>
                                 <button
                                     onClick={() => setIsAspirantesExpanded(!isAspirantesExpanded)}
@@ -964,26 +1007,24 @@ export default function GroupDetailsPage() {
                                                         </p>
                                                     </div>
                                                 </div>
-                                                {isModerator && (
-                                                    <div className="flex items-center gap-2">
-                                                        <button
-                                                            onClick={() => handleJoinRequest(request.id, true)}
-                                                            className="px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded transition-colors font-semibold flex items-center gap-1"
-                                                            title="Aprobar solicitud"
-                                                        >
-                                                            <CheckCircle size={16} />
-                                                            Aprobar
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleJoinRequest(request.id, false)}
-                                                            className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded transition-colors font-semibold flex items-center gap-1"
-                                                            title="Rechazar solicitud"
-                                                        >
-                                                            <XCircle size={16} />
-                                                            Rechazar
-                                                        </button>
-                                                    </div>
-                                                )}
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        onClick={() => handleJoinRequest(request.id, true)}
+                                                        className="px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded transition-colors font-semibold flex items-center gap-1"
+                                                        title="Aprobar solicitud"
+                                                    >
+                                                        <CheckCircle size={16} />
+                                                        Aprobar
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleJoinRequest(request.id, false)}
+                                                        className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded transition-colors font-semibold flex items-center gap-1"
+                                                        title="Rechazar solicitud"
+                                                    >
+                                                        <XCircle size={16} />
+                                                        Rechazar
+                                                    </button>
+                                                </div>
                                             </div>
                                         ))}
                                     </div>
@@ -1201,7 +1242,7 @@ export default function GroupDetailsPage() {
                     </div>
                 )}
 
-                {activeTab === 'settings' && isOwner && (
+                {activeTab === 'settings' && canEditMetadata && (
                     <div className="bg-[#2a475e] rounded-lg p-8">
                         <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
                             <Settings size={28} />
@@ -1210,6 +1251,10 @@ export default function GroupDetailsPage() {
                         <p className="text-gray-300 mb-6">
                             Edita el nombre, descripción, avatar y visibilidad de tu grupo.
                         </p>
+                        
+                        {/* Gestión de Permisos - Solo para Owner */}
+                        {isOwner && <GroupPermissionsManager groupId={groupId} />}
+                        
                         <GroupSettingsForm
                             group={group}
                             onSave={handleSaveGroupSettings}

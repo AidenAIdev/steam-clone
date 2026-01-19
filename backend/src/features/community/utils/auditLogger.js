@@ -241,13 +241,14 @@ export async function registrarRevocarBaneo(moderadorId, grupoId, usuarioId, ipA
 /**
  * Registra agregar miembro
  */
-export async function registrarAgregarMiembro(moderadorId, grupoId, usuarioId, ipAddress) {
+export async function registrarAgregarMiembro(moderadorId, grupoId, usuarioId, rol, ipAddress) {
     return registrarLogComunidad({
         userId: moderadorId,
         accion: ACCIONES_COMUNIDAD.AGREGAR_MIEMBRO,
         recurso: `grupo:${grupoId}`,
         detalles: {
             usuario_agregado: usuarioId,
+            rol: rol,
             timestamp: new Date().toISOString()
         },
         ipAddress,
@@ -258,13 +259,14 @@ export async function registrarAgregarMiembro(moderadorId, grupoId, usuarioId, i
 /**
  * Registra expulsar miembro
  */
-export async function registrarExpulsarMiembro(moderadorId, grupoId, usuarioId, ipAddress) {
+export async function registrarExpulsarMiembro(moderadorId, grupoId, usuarioId, rol, ipAddress) {
     return registrarLogComunidad({
         userId: moderadorId,
         accion: ACCIONES_COMUNIDAD.EXPULSAR_MIEMBRO,
         recurso: `grupo:${grupoId}`,
         detalles: {
             usuario_expulsado: usuarioId,
+            rol: rol,
             timestamp: new Date().toISOString()
         },
         ipAddress,
@@ -294,14 +296,14 @@ export async function registrarCambiarRangoMiembro(moderadorId, grupoId, usuario
 /**
  * Registra creación de anuncio
  */
-export async function registrarCrearAnuncio(userId, grupoId, anuncioId, titulo, ipAddress) {
+export async function registrarCrearAnuncio(userId, grupoId, anuncioId, fijado, ipAddress) {
     return registrarLogComunidad({
         userId,
         accion: ACCIONES_COMUNIDAD.CREAR_ANUNCIO,
         recurso: `grupo:${grupoId}`,
         detalles: {
             anuncio_id: anuncioId,
-            titulo: titulo,
+            fijado: fijado,
             timestamp: new Date().toISOString()
         },
         ipAddress,

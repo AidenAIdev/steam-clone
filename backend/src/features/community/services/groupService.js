@@ -954,7 +954,27 @@ export const groupService = {
 
         if (error) throw error;
 
-        return memberships || [];
+        // Agregar conteo de miembros a cada grupo
+        const membershipsWithCounts = await Promise.all(
+            (memberships || []).map(async (membership) => {
+                const { count } = await supabase
+                    .from('miembros_grupo')
+                    .select('id', { count: 'exact' })
+                    .eq('id_grupo', membership.grupos.id)
+                    .eq('estado_membresia', 'activo')
+                    .is('deleted_at', null);
+
+                return {
+                    ...membership,
+                    grupos: {
+                        ...membership.grupos,
+                        member_count: count || 0
+                    }
+                };
+            })
+        );
+
+        return membershipsWithCounts;
     },
 
     /**

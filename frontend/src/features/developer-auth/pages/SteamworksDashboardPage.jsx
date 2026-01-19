@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { useDeveloperAuth } from '../hooks/useDeveloperAuth';
 import { NavbarSteamworks } from '../components/NavbarSteamworks';
 import { GestionLlavesPage } from '../../game-keys/pages/GestionLlavesPage';
+import { PricesPage } from '../../prices/pages/PricesPage';
 import { MFASetupModal } from '../components/MFASetupModal';
 import { MFAVerificationModal } from '../components/MFAVerificationModal';
 import { developerProfileService } from '../services/developerProfileService';
@@ -15,6 +16,7 @@ import { NuevaAppPage } from '../../new-app/pages';
 import { ConfiguracionTiendaPage } from '../../store-config/pages';
 import { MisAplicacionesPage } from '../../my-apps';
 import { AppItemsPage } from '../../app-items/pages/AppItemsPage';
+
 
 export const SteamworksDashboardPage = () => {
   const navigate = useNavigate();
@@ -73,18 +75,18 @@ export const SteamworksDashboardPage = () => {
 
   // RF-003: Validación de 5 días desde última modificación
   const canEditProfile = () => {
-    if (!desarrollador?.ultima_modificacion_perfil) {
+    if (!desarrollador?.ultima_actualizacion_datos) {
       return true; // Primera vez, puede editar
     }
-    const lastUpdate = new Date(desarrollador.ultima_modificacion_perfil);
+    const lastUpdate = new Date(desarrollador.ultima_actualizacion_datos);
     const now = new Date();
     const diffDays = Math.floor((now - lastUpdate) / (1000 * 60 * 60 * 24));
     return diffDays >= 5;
   };
 
   const getDaysUntilEdit = () => {
-    if (!desarrollador?.ultima_modificacion_perfil) return 0;
-    const lastUpdate = new Date(desarrollador.ultima_modificacion_perfil);
+    if (!desarrollador?.ultima_actualizacion_datos) return 0;
+    const lastUpdate = new Date(desarrollador.ultima_actualizacion_datos);
     const now = new Date();
     const diffDays = Math.floor((now - lastUpdate) / (1000 * 60 * 60 * 24));
     return Math.max(0, 5 - diffDays);
@@ -233,6 +235,17 @@ export const SteamworksDashboardPage = () => {
                     Genera y administra llaves de activación para tus juegos
                   </span>
                 </button>
+                <button 
+                  onClick={() => setActiveTab('precios')}
+                  className="p-4 bg-[#2a3f5f] rounded border border-[#3d5a80] text-left hover:border-[#66c0f4] transition-colors"
+                >
+                  <span className="text-[#66c0f4] font-medium block mb-1">
+                    Precios
+                  </span>
+                  <span className="text-gray-400 text-sm">
+                    Edita los precios de tus aplicaciones y ofertas
+                  </span>
+                </button>
                 <button className='p-4 bg-[#2a3f5f] rounded border border-[#3d5a80] text-left hover:border-[#66c0f4] transition-colors'>
                   <span className='text-[#66c0f4] font-medium block mb-1'>
                     + Nueva Aplicación
@@ -302,9 +315,11 @@ export const SteamworksDashboardPage = () => {
 
       case 'nueva-aplicacion':
         return (
-          <div className="p-8">
-            <h2 className="text-3xl font-bold text-white mb-6">Agregar una nueva aplicación</h2>
-            <div className="bg-[#1e2a38] border border-[#2a3f5f] rounded-lg p-6 text-center">
+          <div className='p-8'>
+            <h2 className='text-3xl font-bold text-white mb-6'>
+              Agregar una nueva aplicación
+            </h2>
+            <div className='bg-[#1e2a38] border border-[#2a3f5f] rounded-lg p-6 text-center'>
               <NuevaAppPage />
             </div>
           </div>
@@ -324,6 +339,13 @@ export const SteamworksDashboardPage = () => {
           </div>
         );
 
+      case 'precios':
+        return (
+          <div className="max-w-7xl mx-auto px-4 py-8">
+            <PricesPage mostrarHeader={false} />
+          </div>
+        );
+        
       case 'objetos-marketplace':
         return (
           <div className='max-w-7xl mx-auto px-4 py-8'>
@@ -368,8 +390,8 @@ export const SteamworksDashboardPage = () => {
                       Perfil bloqueado temporalmente
                     </h4>
                     <p className='text-gray-300 text-sm'>
-                      Por seguridad (RF-003), solo puedes editar tu perfil cada
-                      5 días. Podrás editar nuevamente en{' '}
+                      Por seguridad solo puedes editar tu perfil cada 5 días.
+                      Podrás editar nuevamente en{' '}
                       <strong>
                         {daysRemaining} día{daysRemaining !== 1 ? 's' : ''}
                       </strong>

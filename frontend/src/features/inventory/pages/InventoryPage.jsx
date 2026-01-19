@@ -602,7 +602,7 @@ export const InventoryPage = () => {
                 <option value="all">Todos los items</option>
                 <option value="tradeable">Intercambiables</option>
                 <option value="marketable">Vendibles</option>
-                <option value="locked">Bloqueados</option>
+                <option value="locked">En transacción</option>
               </select>
             </div>
 

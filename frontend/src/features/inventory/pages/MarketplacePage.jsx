@@ -681,8 +681,8 @@ export const MarketplacePage = () => {
             <button
               onClick={() => setActiveTab('market')}
               className={`px-6 py-2 rounded-md font-medium transition-all flex items-center gap-2 ${activeTab === 'market'
-                  ? 'bg-blue-600 text-white shadow'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+                ? 'bg-blue-600 text-white shadow'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
                 }`}
             >
               <ShoppingCart size={18} />
@@ -691,8 +691,8 @@ export const MarketplacePage = () => {
             <button
               onClick={() => setActiveTab('trading')}
               className={`px-6 py-2 rounded-md font-medium transition-all flex items-center gap-2 ${activeTab === 'trading'
-                  ? 'bg-blue-600 text-white shadow'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+                ? 'bg-blue-600 text-white shadow'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
                 }`}
             >
               <Repeat size={18} />
@@ -702,8 +702,8 @@ export const MarketplacePage = () => {
               <button
                 onClick={() => setActiveTab('myListings')}
                 className={`px-6 py-2 rounded-md font-medium transition-all flex items-center gap-2 ${activeTab === 'myListings'
-                    ? 'bg-green-600 text-white shadow'
-                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                  ? 'bg-green-600 text-white shadow'
+                  : 'text-gray-400 hover:text-white hover:bg-white/5'
                   }`}
               >
                 <Tag size={18} />
@@ -740,34 +740,34 @@ export const MarketplacePage = () => {
                 {/* Banner de Límite Diario de Compras */}
                 {user && (
                   <div className={`p-4 rounded-xl border ${dailyPurchaseStatus.limitReached
-                      ? 'bg-red-900/30 border-red-700'
-                      : dailyPurchaseStatus.remaining < 500
-                        ? 'bg-yellow-900/30 border-yellow-700'
-                        : 'bg-[#16202d] border-[#2a475e]'
+                    ? 'bg-red-900/30 border-red-700'
+                    : dailyPurchaseStatus.remaining < 500
+                      ? 'bg-yellow-900/30 border-yellow-700'
+                      : 'bg-[#16202d] border-[#2a475e]'
                     }`}>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div className={`p-2 rounded-lg ${dailyPurchaseStatus.limitReached
-                            ? 'bg-red-800'
-                            : dailyPurchaseStatus.remaining < 500
-                              ? 'bg-yellow-800'
-                              : 'bg-[#2a475e]'
+                          ? 'bg-red-800'
+                          : dailyPurchaseStatus.remaining < 500
+                            ? 'bg-yellow-800'
+                            : 'bg-[#2a475e]'
                           }`}>
                           <Clock className={`w-5 h-5 ${dailyPurchaseStatus.limitReached
-                              ? 'text-red-400'
-                              : dailyPurchaseStatus.remaining < 500
-                                ? 'text-yellow-400'
-                                : 'text-blue-400'
+                            ? 'text-red-400'
+                            : dailyPurchaseStatus.remaining < 500
+                              ? 'text-yellow-400'
+                              : 'text-blue-400'
                             }`} />
                         </div>
                         <div>
                           <p className="text-sm text-gray-400">Límite diario de compras</p>
                           <div className="flex items-center gap-2">
                             <span className={`font-bold ${dailyPurchaseStatus.limitReached
-                                ? 'text-red-400'
-                                : dailyPurchaseStatus.remaining < 500
-                                  ? 'text-yellow-400'
-                                  : 'text-white'
+                              ? 'text-red-400'
+                              : dailyPurchaseStatus.remaining < 500
+                                ? 'text-yellow-400'
+                                : 'text-white'
                               }`}>
                               ${dailyPurchaseStatus.dailyTotal.toFixed(2)}
                             </span>
@@ -779,10 +779,10 @@ export const MarketplacePage = () => {
                       <div className="text-right">
                         <p className="text-xs text-gray-400">Disponible hoy</p>
                         <p className={`font-bold ${dailyPurchaseStatus.limitReached
-                            ? 'text-red-400'
-                            : dailyPurchaseStatus.remaining < 500
-                              ? 'text-yellow-400'
-                              : 'text-green-400'
+                          ? 'text-red-400'
+                          : dailyPurchaseStatus.remaining < 500
+                            ? 'text-yellow-400'
+                            : 'text-green-400'
                           }`}>
                           ${dailyPurchaseStatus.remaining.toFixed(2)}
                         </p>
@@ -792,10 +792,10 @@ export const MarketplacePage = () => {
                     <div className="mt-3 h-2 bg-gray-700 rounded-full overflow-hidden">
                       <div
                         className={`h-full transition-all duration-300 ${dailyPurchaseStatus.limitReached
-                            ? 'bg-red-500'
-                            : dailyPurchaseStatus.remaining < 500
-                              ? 'bg-yellow-500'
-                              : 'bg-blue-500'
+                          ? 'bg-red-500'
+                          : dailyPurchaseStatus.remaining < 500
+                            ? 'bg-yellow-500'
+                            : 'bg-blue-500'
                           }`}
                         style={{ width: `${Math.min(100, (dailyPurchaseStatus.dailyTotal / dailyPurchaseStatus.dailyLimit) * 100)}%` }}
                       />
@@ -865,8 +865,8 @@ export const MarketplacePage = () => {
                       <button
                         onClick={() => setShowFilters(!showFilters)}
                         className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border transition ${showFilters || hasActiveFilters
-                            ? 'bg-blue-600 border-blue-500 text-white'
-                            : 'bg-[#1b2838] border-[#2a475e] text-gray-300 hover:border-blue-500'
+                          ? 'bg-blue-600 border-blue-500 text-white'
+                          : 'bg-[#1b2838] border-[#2a475e] text-gray-300 hover:border-blue-500'
                           }`}
                       >
                         <Filter size={18} />
@@ -991,8 +991,8 @@ export const MarketplacePage = () => {
                                 disabled={!user || limitReached || exceedsLimit}
                                 title={limitReached ? 'Límite diario alcanzado' : exceedsLimit ? `Este item excede tu límite restante ($${dailyPurchaseStatus.remaining.toFixed(2)})` : ''}
                                 className={`px-3 py-1 rounded text-sm font-medium transition disabled:cursor-not-allowed ${limitReached || exceedsLimit
-                                    ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                                    : 'bg-green-600 hover:bg-green-500'
+                                  ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                                  : 'bg-green-600 hover:bg-green-500'
                                   }`}
                               >
                                 {limitReached ? 'Límite' : exceedsLimit ? 'Excede límite' : 'Comprar'}
@@ -1179,18 +1179,10 @@ export const MarketplacePage = () => {
 
                                         {/* Contenedor de imagen */}
                                         <div className="aspect-square bg-gradient-to-br from-gray-800 to-gray-900 rounded-lg flex items-center justify-center mb-3 overflow-hidden">
-                                          {item.image_url ? (
-                                            <img
-                                              src={item.image_url}
-                                              alt={item.name}
-                                              className="w-full h-full object-cover"
-                                            />
-                                          ) : (
-                                            <Package
-                                              className={selectedSellItem?.id === item.id ? 'text-green-400' : 'text-gray-500'}
-                                              size={40}
-                                            />
-                                          )}
+                                          <Package
+                                            className={selectedSellItem?.id === item.id ? 'text-green-400' : 'text-gray-500'}
+                                            size={40}
+                                          />
                                         </div>
 
                                         {/* Información del item */}
@@ -1298,8 +1290,8 @@ export const MarketplacePage = () => {
                       <ShoppingCart className="text-yellow-500" size={24} />
                       Mis Artículos en Venta
                       <span className={`text-sm px-2 py-0.5 rounded-full ${myMarketListings.length >= MARKETPLACE_LIMITS.MAX_ACTIVE_LISTINGS
-                          ? 'bg-red-500/20 text-red-400'
-                          : 'bg-yellow-500/20 text-yellow-400'
+                        ? 'bg-red-500/20 text-red-400'
+                        : 'bg-yellow-500/20 text-yellow-400'
                         }`}>
                         {myMarketListings.length}/{MARKETPLACE_LIMITS.MAX_ACTIVE_LISTINGS}
                       </span>
@@ -1308,8 +1300,8 @@ export const MarketplacePage = () => {
                       onClick={handleSellItem}
                       disabled={myMarketListings.length >= MARKETPLACE_LIMITS.MAX_ACTIVE_LISTINGS}
                       className={`px-4 py-2 rounded text-sm transition flex items-center gap-2 ${myMarketListings.length >= MARKETPLACE_LIMITS.MAX_ACTIVE_LISTINGS
-                          ? 'bg-gray-600 cursor-not-allowed text-gray-400'
-                          : 'bg-green-600 hover:bg-green-500'
+                        ? 'bg-gray-600 cursor-not-allowed text-gray-400'
+                        : 'bg-green-600 hover:bg-green-500'
                         }`}
                     >
                       <DollarSign size={16} />
@@ -1408,8 +1400,8 @@ export const MarketplacePage = () => {
                                           if (e.key === 'Escape') handleCancelEditPrice();
                                         }}
                                         className={`w-full pl-6 pr-2 py-1.5 bg-[#2a475e] border rounded text-white text-sm focus:outline-none focus:ring-2 ${editPriceState?.error
-                                            ? 'border-red-500 focus:ring-red-500'
-                                            : 'border-gray-600 focus:ring-blue-500'
+                                          ? 'border-red-500 focus:ring-red-500'
+                                          : 'border-gray-600 focus:ring-blue-500'
                                           }`}
                                         placeholder={currentPrice.toFixed(2)}
                                         autoFocus
@@ -1487,8 +1479,8 @@ export const MarketplacePage = () => {
                       <Repeat className="text-purple-500" size={24} />
                       Mis Intercambios Activos
                       <span className={`text-sm px-2 py-0.5 rounded-full ${tradeLimitsStatus.limitReached
-                          ? 'bg-red-500/20 text-red-400'
-                          : 'bg-purple-500/20 text-purple-400'
+                        ? 'bg-red-500/20 text-red-400'
+                        : 'bg-purple-500/20 text-purple-400'
                         }`}>
                         {myTrades.length}/{tradeLimitsStatus.maxAllowed}
                       </span>
@@ -2062,8 +2054,8 @@ export const MarketplacePage = () => {
 
               {/* Daily Limit Info */}
               <div className={`rounded-lg p-3 mb-4 ${(typeof selectedPurchaseItem.price === 'number' ? selectedPurchaseItem.price : parseFloat(selectedPurchaseItem.price)) > dailyPurchaseStatus.remaining
-                  ? 'bg-red-500/10 border border-red-500/30'
-                  : 'bg-[#16202d] border border-[#2a475e]'
+                ? 'bg-red-500/10 border border-red-500/30'
+                : 'bg-[#16202d] border border-[#2a475e]'
                 }`}>
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-gray-400 flex items-center gap-1">
@@ -2071,8 +2063,8 @@ export const MarketplacePage = () => {
                     Límite diario restante
                   </span>
                   <span className={`font-medium ${(typeof selectedPurchaseItem.price === 'number' ? selectedPurchaseItem.price : parseFloat(selectedPurchaseItem.price)) > dailyPurchaseStatus.remaining
-                      ? 'text-red-400'
-                      : 'text-green-400'
+                    ? 'text-red-400'
+                    : 'text-green-400'
                     }`}>
                     ${dailyPurchaseStatus.remaining.toFixed(2)}
                   </span>

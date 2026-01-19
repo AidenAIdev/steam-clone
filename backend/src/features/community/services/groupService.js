@@ -1,5 +1,6 @@
 import { supabaseAdmin as supabase } from '../../../shared/config/supabase.js';
 import { notificationService } from '../../../shared/services/notificationService.js';
+import { consentService } from './consentService.js';
 import { 
     registrarCrearGrupo, 
     registrarEliminarGrupo, 
@@ -216,6 +217,12 @@ export const groupService = {
      * RG-001c - Unirse a un grupo
      */
     async joinGroup(userId, groupId) {
+        // Verificar consentimiento activo
+        const hasConsent = await consentService.hasActiveConsent(userId);
+        if (!hasConsent) {
+            throw new Error('CONSENT_REQUIRED');
+        }
+
         // Verificar que el usuario es estándar
         const { data: profile, error: profileError } = await supabase
             .from('profiles')

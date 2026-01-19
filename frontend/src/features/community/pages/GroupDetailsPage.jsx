@@ -11,6 +11,7 @@ import CreateAnnouncementModal from '../components/CreateAnnouncementModal';
 import GroupSettingsForm from '../components/GroupSettingsForm';
 import ForumActions from '../components/ForumActions';
 import InviteMemberModal from '../components/InviteMemberModal';
+import GroupConsentModal from '../components/GroupConsentModal';
 
 export default function GroupDetailsPage() {
     const { groupId } = useParams();
@@ -32,6 +33,8 @@ export default function GroupDetailsPage() {
     const [isMembersExpanded, setIsMembersExpanded] = useState(true);
     const [isAspirantesExpanded, setIsAspirantesExpanded] = useState(true);
     const [openMemberMenu, setOpenMemberMenu] = useState(null);
+    const [showConsentModal, setShowConsentModal] = useState(false);
+    const [pendingGroupJoin, setPendingGroupJoin] = useState(null);
     const { 
         group, 
         members, 
@@ -52,6 +55,20 @@ export default function GroupDetailsPage() {
 
     useEffect(() => {
         const loadData = async () => {
+            // Verificar consentimiento si el usuario es miembro
+            if (user?.id) {
+                try {
+                    const { consentService } = await import('../services/consentService');
+                    const consentCheck = await consentService.checkConsent();
+                    if (!consentCheck.data.hasConsent) {
+                        setShowConsentModal(true);
+                        return;
+                    }
+                } catch (err) {
+                    console.error('Error checking consent:', err);
+                }
+            }
+
             await fetchGroupDetails();
             // Intentar cargar datos adicionales, pero no bloquear si hay errores de acceso
             fetchMembers().catch((err) => console.log('No se pudieron cargar miembros:', err.message));
@@ -60,7 +77,7 @@ export default function GroupDetailsPage() {
             loadForums();
         };
         loadData();
-    }, [fetchGroupDetails, fetchMembers, fetchPendingRequests, fetchAnnouncements]);
+    }, [fetchGroupDetails, fetchMembers, fetchPendingRequests, fetchAnnouncements, user]);
 
     // Cerrar menú de miembro al hacer clic fuera
     useEffect(() => {
@@ -138,6 +155,22 @@ export default function GroupDetailsPage() {
     const handleJoinGroup = async () => {
         if (joiningGroup) return;
         
+        // Verificar consentimiento primero
+        try {
+            const { consentService } = await import('../services/consentService');
+            const consentCheck = await consentService.checkConsent();
+            
+            if (!consentCheck.data.hasConsent) {
+                setPendingGroupJoin(groupId);
+                setShowConsentModal(true);
+                return;
+            }
+        } catch (err) {
+            console.error('Error checking consent:', err);
+            alert('Error al verificar el consentimiento');
+            return;
+        }
+
         try {
             setJoiningGroup(true);
             const response = await joinGroup(groupId);
@@ -155,11 +188,42 @@ export default function GroupDetailsPage() {
             }
         } catch (err) {
             console.error('Error joining group:', err);
-            // Mostrar el mensaje de error específico del backend
-            alert(err.message || 'Error al unirse al grupo. Por favor, intenta de nuevo.');
+            if (err.message === 'CONSENT_REQUIRED') {
+                setPendingGroupJoin(groupId);
+                setShowConsentModal(true);
+            } else {
+                alert(err.message || 'Error al unirse al grupo. Por favor, intenta de nuevo.');
+            }
         } finally {
             setJoiningGroup(false);
         }
+    };
+
+    const handleConsentAccept = async () => {
+        try {
+            const { consentService } = await import('../services/consentService');
+            await consentService.grantConsent();
+            setShowConsentModal(false);
+            
+            // Si había una acción pendiente (unirse a grupo), ejecutarla
+            if (pendingGroupJoin) {
+                setPendingGroupJoin(null);
+                // Recargar la página para aplicar el consentimiento
+                window.location.reload();
+            } else {
+                // Solo recargar detalles
+                await fetchGroupDetails();
+            }
+        } catch (err) {
+            console.error('Error granting consent:', err);
+            alert('Error al otorgar el consentimiento');
+        }
+    };
+
+    const handleConsentReject = () => {
+        setShowConsentModal(false);
+        setPendingGroupJoin(null);
+        navigate('/profile');
     };
 
     const handleLeaveGroup = async () => {
@@ -1165,6 +1229,15 @@ export default function GroupDetailsPage() {
                 onInvite={handleInviteMember}
             />
             )}
+
+            {/* Group Consent Modal */}
+            <GroupConsentModal
+                isOpen={showConsentModal}
+                onClose={handleConsentReject}
+                onAccept={handleConsentAccept}
+                onReject={handleConsentReject}
+                groupName={group?.nombre}
+            />
         </div>
     );
 }

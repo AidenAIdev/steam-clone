@@ -1,11 +1,19 @@
 import { supabaseAdmin as supabase } from '../../../shared/config/supabase.js';
+import { notificationService } from '../../../shared/services/notificationService.js';
+import { 
+    registrarCrearGrupo, 
+    registrarEliminarGrupo, 
+    registrarActualizarGrupo,
+    registrarBanearUsuario,
+    registrarDesbanearUsuario
+} from '../utils/auditLogger.js';
 
 export const groupService = {
     /**
      * RG-001a - Crear un nuevo grupo
      * Usuario estándar puede crear hasta 10 grupos
      */
-    async createGroup(userId, groupData) {
+    async createGroup(userId, groupData, ipAddress = null) {
         // Verificar que el usuario es estándar (no limitado)
         const { data: profile, error: profileError } = await supabase
             .from('profiles')
@@ -74,13 +82,22 @@ export const groupService = {
             throw memberError;
         }
 
+        // Registrar log de auditoría
+        await registrarCrearGrupo(
+            userId,
+            grupo.id,
+            grupo.nombre,
+            grupo.visibilidad,
+            ipAddress
+        );
+
         return grupo;
     },
 
     /**
      * RG-001b - Editar grupo (solo Owner)
      */
-    async updateGroup(userId, groupId, updateData) {
+    async updateGroup(userId, groupId, updateData, ipAddress = null) {
         // Verificar que el usuario es Owner del grupo
         const { data: member, error: memberError } = await supabase
             .from('miembros_grupo')
@@ -126,7 +143,73 @@ export const groupService = {
 
         if (updateError) throw updateError;
 
+        // Registrar log de auditoría
+        await registrarActualizarGrupo(
+            userId,
+            groupId,
+            Object.keys(updateFields).filter(k => k !== 'updated_at'),
+            ipAddress
+        );
+
         return grupo;
+    },
+
+    /**
+     * RG-001d - Eliminar grupo (solo Owner)
+     */
+    async deleteGroup(userId, groupId, ipAddress = null) {
+        // Verificar que el usuario es Owner del grupo
+        const { data: member, error: memberError } = await supabase
+            .from('miembros_grupo')
+            .select('rol')
+            .eq('id_grupo', groupId)
+            .eq('id_perfil', userId)
+            .eq('estado_membresia', 'activo')
+            .is('deleted_at', null)
+            .single();
+
+        if (memberError || !member) {
+            throw new Error('No eres miembro de este grupo');
+        }
+
+        if (member.rol !== 'Owner') {
+            throw new Error('Solo el dueño puede eliminar el grupo');
+        }
+
+        // Obtener información del grupo antes de eliminarlo
+        const { data: grupoInfo } = await supabase
+            .from('grupos')
+            .select('nombre, visibilidad')
+            .eq('id', groupId)
+            .is('deleted_at', null)
+            .single();
+
+        // Soft delete del grupo
+        const { error: deleteError } = await supabase
+            .from('grupos')
+            .update({ deleted_at: new Date().toISOString() })
+            .eq('id', groupId)
+            .is('deleted_at', null);
+
+        if (deleteError) throw deleteError;
+
+        // También hacer soft delete de todos los miembros del grupo
+        await supabase
+            .from('miembros_grupo')
+            .update({ deleted_at: new Date().toISOString() })
+            .eq('id_grupo', groupId)
+            .is('deleted_at', null);
+
+        // Registrar log de auditoría
+        await registrarEliminarGrupo(
+            userId,
+            groupId,
+            grupoInfo?.nombre || 'Desconocido',
+            grupoInfo?.visibilidad || 'Desconocido',
+            ipAddress
+        );
+
+        return { success: true };
     },
 
     /**
@@ -266,6 +349,21 @@ export const groupService = {
             // Si es Closed, no puede solicitar unirse
             if (grupo.visibilidad === 'Closed') {
                 throw new Error('Este grupo es privado. Necesitas una invitación para unirte');
+            }
+
+            // Si es Restricted, verificar si ya tiene una solicitud pendiente
+            const { data: existingRequest } = await supabase
+                .from('invitaciones_solicitudes')
+                .select('id')
+                .eq('id_grupo', groupId)
+                .eq('id_usuario_origen', userId)
+                .eq('tipo', 'solicitud')
+                .eq('estado', 'pendiente')
+                .is('deleted_at', null)
+                .single();
+
+            if (existingRequest) {
+                return { success: true, status: 'pending', message: 'Ya tienes una solicitud pendiente para este grupo' };
             }
 
             // Si es Restricted, crear solicitud
@@ -421,7 +519,7 @@ export const groupService = {
     /**
      * RG-006 - Banear/desbanear miembro (Owner y Moderator)
      */
-    async banMember(requesterId, groupId, targetUserId, isBan = true, isPermanent = true, days = null) {
+    async banMember(requesterId, groupId, targetUserId, isBan = true, isPermanent = true, days = null, ipAddress = null) {
         // Verificar permisos
         const { data: requester, error: requesterError } = await supabase
             .from('miembros_grupo')
@@ -476,6 +574,16 @@ export const groupService = {
                 .eq('id_perfil', targetUserId);
 
             if (updateError) throw updateError;
+
+            // Registrar log de auditoría
+            await registrarBanearUsuario(
+                requesterId,
+                groupId,
+                targetUserId,
+                isPermanent,
+                days,
+                ipAddress
+            );
         } else {
             // Desbanear
             const { error: updateError } = await supabase
@@ -489,9 +597,65 @@ export const groupService = {
                 .eq('id_perfil', targetUserId);
 
             if (updateError) throw updateError;
+
+            // Registrar log de auditoría
+            await registrarDesbanearUsuario(
+                requesterId,
+                groupId,
+                targetUserId,
+                ipAddress
+            );
         }
 
         return { success: true };
+    },
+
+    /**
+     * Obtener solicitudes de unión pendientes (Owner y Moderator)
+     */
+    async getPendingRequests(userId, groupId) {
+        // Verificar permisos (solo Owner y Moderator pueden ver solicitudes)
+        const { data: member, error: memberError } = await supabase
+            .from('miembros_grupo')
+            .select('rol')
+            .eq('id_grupo', groupId)
+            .eq('id_perfil', userId)
+            .eq('estado_membresia', 'activo')
+            .is('deleted_at', null)
+            .single();
+
+        if (memberError || !member) {
+            throw new Error('No eres miembro de este grupo');
+        }
+
+        if (member.rol !== 'Owner' && member.rol !== 'Moderator') {
+            throw new Error('No tienes permisos para ver solicitudes');
+        }
+
+        // Obtener solicitudes pendientes
+        const { data: requests, error: requestsError } = await supabase
+            .from('invitaciones_solicitudes')
+            .select(`
+                id,
+                id_usuario_origen,
+                fecha_solicitud,
+                profiles:id_usuario_origen (
+                    id,
+                    username
+                )
+            `)
+            .eq('id_grupo', groupId)
+            .eq('tipo', 'solicitud')
+            .eq('estado', 'pendiente')
+            .is('deleted_at', null)
+            .order('fecha_solicitud', { ascending: false });
+
+        if (requestsError) {
+            console.error('Error getting pending requests:', requestsError);
+            throw new Error('Error al obtener las solicitudes');
+        }
+
+        return requests || [];
     },
 
     /**
@@ -542,15 +706,51 @@ export const groupService = {
 
         // Si se aprueba, agregar como miembro
         if (approve) {
-            await supabase
+            // Verificar si ya existe un registro (incluso eliminado)
+            const { data: existingMember } = await supabase
                 .from('miembros_grupo')
-                .insert({
-                    id_grupo: groupId,
-                    id_perfil: request.id_usuario_origen,
-                    rol: 'Member',
-                    estado_membresia: 'activo',
-                    fecha_union: new Date().toISOString()
-                });
+                .select('id, deleted_at')
+                .eq('id_grupo', groupId)
+                .eq('id_perfil', request.id_usuario_origen)
+                .single();
+
+            if (existingMember) {
+                // Si existe pero está eliminado, restaurarlo
+                if (existingMember.deleted_at) {
+                    const { error: updateError } = await supabase
+                        .from('miembros_grupo')
+                        .update({
+                            deleted_at: null,
+                            rol: 'Member',
+                            estado_membresia: 'activo',
+                            fecha_union: new Date().toISOString(),
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('id', existingMember.id);
+
+                    if (updateError) {
+                        console.error('Error updating existing member:', updateError);
+                        throw new Error('Error al agregar el miembro al grupo');
+                    }
+                }
+                // Si existe y está activo, no hacer nada (ya es miembro)
+            } else {
+                // Si no existe, crear nuevo registro
+                const { error: insertError } = await supabase
+                    .from('miembros_grupo')
+                    .insert({
+                        id_grupo: groupId,
+                        id_perfil: request.id_usuario_origen,
+                        rol: 'Member',
+                        estado_membresia: 'activo',
+                        fecha_union: new Date().toISOString()
+                    });
+
+                if (insertError) {
+                    console.error('Error inserting new member:', insertError);
+                    throw new Error('Error al agregar el miembro al grupo');
+                }
+            }
         }
 
         return { success: true };
@@ -582,10 +782,10 @@ export const groupService = {
             .is('deleted_at', null)
             .single();
 
-        // En grupos Closed, solo Owner y Moderator pueden invitar
-        if (grupo.visibilidad === 'Closed' && 
-            requester.rol !== 'Owner' && requester.rol !== 'Moderator') {
-            throw new Error('Solo el dueño y moderadores pueden invitar en grupos privados');
+        // En grupos Closed, cualquier miembro puede invitar
+        // En otros tipos de grupos también
+        if (!grupo) {
+            throw new Error('Grupo no encontrado');
         }
 
         // Verificar que el target es usuario estándar
@@ -616,6 +816,21 @@ export const groupService = {
             throw new Error('Este usuario ya es miembro del grupo');
         }
 
+        // Verificar si ya existe una invitación pendiente para este usuario
+        const { data: existingInvitation } = await supabase
+            .from('invitaciones_solicitudes')
+            .select('id')
+            .eq('id_grupo', groupId)
+            .eq('id_usuario_destino', targetUserId)
+            .eq('tipo', 'invitacion')
+            .eq('estado', 'pendiente')
+            .is('deleted_at', null)
+            .single();
+
+        if (existingInvitation) {
+            throw new Error('Este usuario ya tiene una invitación pendiente para este grupo');
+        }
+
         // Crear invitación
         const { error: inviteError } = await supabase
             .from('invitaciones_solicitudes')
@@ -629,6 +844,9 @@ export const groupService = {
             });
 
         if (inviteError) throw inviteError;
+
+        // Notificar al usuario invitado vía WebSocket
+        await notificationService.notifyGroupInvitation(targetUserId, groupId, requesterId);
 
         return { success: true };
     },
@@ -682,6 +900,7 @@ export const groupService = {
 
         // Verificar si el usuario es miembro
         let userMembership = null;
+        let hasPendingRequest = false;
         if (userId) {
             const { data: membership } = await supabase
                 .from('miembros_grupo')
@@ -692,6 +911,21 @@ export const groupService = {
                 .single();
 
             userMembership = membership;
+
+            // Verificar si tiene una solicitud pendiente
+            if (!membership) {
+                const { data: pendingRequest } = await supabase
+                    .from('invitaciones_solicitudes')
+                    .select('id')
+                    .eq('id_grupo', groupId)
+                    .eq('id_usuario_origen', userId)
+                    .eq('tipo', 'solicitud')
+                    .eq('estado', 'pendiente')
+                    .is('deleted_at', null)
+                    .single();
+
+                hasPendingRequest = !!pendingRequest;
+            }
         }
 
         // Contar miembros
@@ -705,7 +939,8 @@ export const groupService = {
         return {
             ...grupo,
             member_count: memberCount || 0,
-            user_membership: userMembership
+            user_membership: userMembership,
+            has_pending_request: hasPendingRequest
         };
     },
 
@@ -804,5 +1039,28 @@ export const groupService = {
         );
 
         return groupsWithCounts;
+    },
+
+    /**
+     * Buscar usuarios por username para invitar
+     */
+    async searchUsersToInvite(searchTerm) {
+        if (!searchTerm || searchTerm.trim().length < 2) {
+            return [];
+        }
+
+        const { data: users, error } = await supabase
+            .from('profiles')
+            .select('id, username, is_limited')
+            .ilike('username', `%${searchTerm.trim()}%`)
+            .eq('is_limited', false)
+            .limit(10);
+
+        if (error) {
+            console.error('Error searching users:', error);
+            throw new Error('Error al buscar usuarios');
+        }
+
+        return users || [];
     }
 };

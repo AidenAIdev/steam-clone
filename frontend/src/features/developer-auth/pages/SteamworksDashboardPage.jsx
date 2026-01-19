@@ -12,6 +12,7 @@ import { MFASetupModal } from '../components/MFASetupModal';
 import { MFAVerificationModal } from '../components/MFAVerificationModal';
 import { developerProfileService } from '../services/developerProfileService';
 import { NuevaAppPage } from '../../new-app/pages';
+import { MisAplicacionesPage } from '../../my-apps';
 import { AppItemsPage } from '../../app-items/pages/AppItemsPage';
 
 export const SteamworksDashboardPage = () => {
@@ -71,18 +72,18 @@ export const SteamworksDashboardPage = () => {
 
   // RF-003: Validación de 5 días desde última modificación
   const canEditProfile = () => {
-    if (!desarrollador?.ultima_modificacion_perfil) {
+    if (!desarrollador?.ultima_actualizacion_datos) {
       return true; // Primera vez, puede editar
     }
-    const lastUpdate = new Date(desarrollador.ultima_modificacion_perfil);
+    const lastUpdate = new Date(desarrollador.ultima_actualizacion_datos);
     const now = new Date();
     const diffDays = Math.floor((now - lastUpdate) / (1000 * 60 * 60 * 24));
     return diffDays >= 5;
   };
 
   const getDaysUntilEdit = () => {
-    if (!desarrollador?.ultima_modificacion_perfil) return 0;
-    const lastUpdate = new Date(desarrollador.ultima_modificacion_perfil);
+    if (!desarrollador?.ultima_actualizacion_datos) return 0;
+    const lastUpdate = new Date(desarrollador.ultima_actualizacion_datos);
     const now = new Date();
     const diffDays = Math.floor((now - lastUpdate) / (1000 * 60 * 60 * 24));
     return Math.max(0, 5 - diffDays);
@@ -288,21 +289,23 @@ export const SteamworksDashboardPage = () => {
 
       case 'mis-aplicaciones':
         return (
-          <div className='p-8'>
-            <h2 className='text-3xl font-bold text-white mb-6'>
-              Mis Aplicaciones
-            </h2>
-            <div className='bg-[#1e2a38] border border-[#2a3f5f] rounded-lg p-6 text-center'>
-              <p className='text-gray-400'>No tienes aplicaciones aún</p>
-            </div>
-          </div>
+          <MisAplicacionesPage 
+            onEditStore={(app) => {
+              // Navegar a configuración de tienda con la aplicación seleccionada
+              console.log('[DASHBOARD] Editar tienda de:', app.app_id);
+              setActiveTab('configuracion-tienda');
+              // TODO: Pasar el app seleccionado al tab de configuración de tienda
+            }}
+          />
         );
 
       case 'nueva-aplicacion':
         return (
-          <div className="p-8">
-            <h2 className="text-3xl font-bold text-white mb-6">Agregar una nueva aplicación</h2>
-            <div className="bg-[#1e2a38] border border-[#2a3f5f] rounded-lg p-6 text-center">
+          <div className='p-8'>
+            <h2 className='text-3xl font-bold text-white mb-6'>
+              Agregar una nueva aplicación
+            </h2>
+            <div className='bg-[#1e2a38] border border-[#2a3f5f] rounded-lg p-6 text-center'>
               <NuevaAppPage />
             </div>
           </div>
@@ -359,8 +362,8 @@ export const SteamworksDashboardPage = () => {
                       Perfil bloqueado temporalmente
                     </h4>
                     <p className='text-gray-300 text-sm'>
-                      Por seguridad (RF-003), solo puedes editar tu perfil cada
-                      5 días. Podrás editar nuevamente en{' '}
+                      Por seguridad solo puedes editar tu perfil cada 5 días.
+                      Podrás editar nuevamente en{' '}
                       <strong>
                         {daysRemaining} día{daysRemaining !== 1 ? 's' : ''}
                       </strong>

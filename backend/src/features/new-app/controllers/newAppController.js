@@ -389,7 +389,7 @@ export const newAppController = {
 
       // TODO: Integrar con pasarela de pagos real
       // Por ahora, simplemente marcamos el pago como completado
-      
+
       const resultado = await newAppService.procesarPagoRegistro(appId, desarrolladorId);
 
       return res.status(200).json({
@@ -400,7 +400,7 @@ export const newAppController = {
 
     } catch (error) {
       console.error('[CONTROLLER] Error en procesarPago:', error);
-      
+
       if (error.message.includes('no encontrada') || error.message.includes('sin permisos')) {
         return res.status(404).json({
           success: false,
@@ -411,6 +411,217 @@ export const newAppController = {
       return res.status(500).json({
         success: false,
         mensaje: 'Error interno al procesar el pago'
+      });
+    }
+  },
+
+  /**
+   * GET /api/new-app/:appId/resenias
+   * Obtiene las reseñas de una aplicación
+   */
+  async obtenerResenias(req, res) {
+    try {
+      const { appId } = req.params;
+      const desarrolladorId = req.desarrollador.id;
+
+      const resenias = await newAppService.obtenerReseniasAplicacion(appId, desarrolladorId);
+
+      return res.status(200).json({
+        success: true,
+        data: resenias,
+        count: resenias.length
+      });
+
+    } catch (error) {
+      console.error('[CONTROLLER] Error en obtenerResenias:', error);
+
+      if (error.message.includes('no encontrada') || error.message.includes('sin permisos')) {
+        return res.status(404).json({
+          success: false,
+          mensaje: error.message
+        });
+      }
+
+      return res.status(500).json({
+        success: false,
+        mensaje: 'Error interno al obtener reseñas'
+      });
+    }
+  },
+
+  /**
+   * POST /api/new-app/:appId/resenias/:resenaId/responder
+   * Responder a una reseña
+   */
+  async responderResenia(req, res) {
+    try {
+      const { appId, resenaId } = req.params;
+      const desarrolladorId = req.desarrollador.id;
+      const { respuesta } = req.body;
+
+      if (!respuesta) {
+        return res.status(400).json({
+          success: false,
+          mensaje: 'La respuesta es requerida'
+        });
+      }
+
+      const resultado = await newAppService.responderResenia(
+        appId,
+        desarrolladorId,
+        resenaId,
+        respuesta
+      );
+
+      return res.status(200).json({
+        success: true,
+        mensaje: 'Respuesta enviada correctamente',
+        data: resultado
+      });
+
+    } catch (error) {
+      console.error('[CONTROLLER] Error en responderResenia:', error);
+
+      if (error.message.includes('no encontrada') || error.message.includes('sin permisos')) {
+        return res.status(404).json({
+          success: false,
+          mensaje: error.message
+        });
+      }
+
+      if (error.message.includes('ya tiene') || error.message.includes('debe tener') ||
+          error.message.includes('no puede') || error.message.includes('Solo puedes')) {
+        return res.status(400).json({
+          success: false,
+          mensaje: error.message
+        });
+      }
+
+      return res.status(500).json({
+        success: false,
+        mensaje: 'Error interno al responder reseña'
+      });
+    }
+  },
+
+  /**
+   * GET /api/new-app/:appId/anuncios
+   * Obtiene los anuncios de una aplicación
+   */
+  async obtenerAnuncios(req, res) {
+    try {
+      const { appId } = req.params;
+      const desarrolladorId = req.desarrollador.id;
+
+      const anuncios = await newAppService.obtenerAnunciosAplicacion(appId, desarrolladorId);
+
+      return res.status(200).json({
+        success: true,
+        data: anuncios,
+        count: anuncios.length
+      });
+
+    } catch (error) {
+      console.error('[CONTROLLER] Error en obtenerAnuncios:', error);
+
+      if (error.message.includes('no encontrada') || error.message.includes('sin permisos')) {
+        return res.status(404).json({
+          success: false,
+          mensaje: error.message
+        });
+      }
+
+      return res.status(500).json({
+        success: false,
+        mensaje: 'Error interno al obtener anuncios'
+      });
+    }
+  },
+
+  /**
+   * POST /api/new-app/:appId/anuncios
+   * Crear un nuevo anuncio
+   */
+  async crearAnuncio(req, res) {
+    try {
+      const { appId } = req.params;
+      const desarrolladorId = req.desarrollador.id;
+      const { titulo, contenido, tipo } = req.body;
+
+      if (!titulo || !contenido || !tipo) {
+        return res.status(400).json({
+          success: false,
+          mensaje: 'Título, contenido y tipo son requeridos'
+        });
+      }
+
+      const resultado = await newAppService.crearAnuncioAplicacion(
+        appId,
+        desarrolladorId,
+        { titulo, contenido, tipo }
+      );
+
+      return res.status(201).json({
+        success: true,
+        mensaje: 'Anuncio publicado correctamente',
+        data: resultado
+      });
+
+    } catch (error) {
+      console.error('[CONTROLLER] Error en crearAnuncio:', error);
+
+      if (error.message.includes('no encontrada') || error.message.includes('sin permisos')) {
+        return res.status(404).json({
+          success: false,
+          mensaje: error.message
+        });
+      }
+
+      if (error.message.includes('debe tener') || error.message.includes('no puede') ||
+          error.message.includes('no válido') || error.message.includes('Solo puedes')) {
+        return res.status(400).json({
+          success: false,
+          mensaje: error.message
+        });
+      }
+
+      return res.status(500).json({
+        success: false,
+        mensaje: 'Error interno al crear anuncio'
+      });
+    }
+  },
+
+  /**
+   * DELETE /api/new-app/:appId/anuncios/:anuncioId
+   * Eliminar un anuncio
+   */
+  async eliminarAnuncio(req, res) {
+    try {
+      const { appId, anuncioId } = req.params;
+      const desarrolladorId = req.desarrollador.id;
+
+      await newAppService.eliminarAnuncioAplicacion(appId, desarrolladorId, anuncioId);
+
+      return res.status(200).json({
+        success: true,
+        mensaje: 'Anuncio eliminado correctamente'
+      });
+
+    } catch (error) {
+      console.error('[CONTROLLER] Error en eliminarAnuncio:', error);
+
+      if (error.message.includes('no encontrada') || error.message.includes('sin permisos') ||
+          error.message.includes('no encontrado')) {
+        return res.status(404).json({
+          success: false,
+          mensaje: error.message
+        });
+      }
+
+      return res.status(500).json({
+        success: false,
+        mensaje: 'Error interno al eliminar anuncio'
       });
     }
   }

@@ -1,6 +1,6 @@
 /**
  * Página de Configuración de Tienda
- * Permite a los desarrolladores editar la información de sus aplicaciones publicadas:
+ * Permite a los desarrolladores editar la información de sus aplicaciones APROBADAS o PUBLICADAS:
  * - Descripción larga (para SEO y página de tienda)
  * - Etiquetas/tags para categorización
  * - Publicar anuncios y eventos
@@ -8,13 +8,14 @@
  */
 
 import { useState, useEffect } from 'react';
-import { X, Save, Tag, FileText, AlertCircle, Megaphone, MessageSquare, Star, Send } from 'lucide-react';
+import { X, Save, Tag, FileText, AlertCircle, Megaphone, MessageSquare, Star, Send, Trash2, Clock, Lock } from 'lucide-react';
 import { storeConfigService } from '../services/storeConfigService';
 import { developerAuthService } from '../../developer-auth/services/developerAuthService';
 
 export const ConfiguracionTiendaPage = () => {
   // Estado para la aplicación seleccionada
   const [aplicaciones, setAplicaciones] = useState([]);
+  const [aplicacionesAprobadas, setAplicacionesAprobadas] = useState([]);
   const [appSeleccionada, setAppSeleccionada] = useState('');
   const [appData, setAppData] = useState(null);
   const [loadingApps, setLoadingApps] = useState(true);
@@ -29,45 +30,23 @@ export const ConfiguracionTiendaPage = () => {
   const [loadingEtiquetas, setLoadingEtiquetas] = useState(false);
 
   // Estado para anuncios
+  const [anuncios, setAnuncios] = useState([]);
   const [nuevoAnuncio, setNuevoAnuncio] = useState({ titulo: '', contenido: '', tipo: 'noticia' });
+  const [loadingAnuncios, setLoadingAnuncios] = useState(false);
+  const [loadingCrearAnuncio, setLoadingCrearAnuncio] = useState(false);
 
-  // Estado para respuestas a reseñas
+  // Estado para reseñas
+  const [resenias, setResenias] = useState([]);
+  const [loadingResenias, setLoadingResenias] = useState(false);
   const [respuestas, setRespuestas] = useState({});
-
-  // Datos hardcodeados de reseñas pendientes
-  const resenasPendientes = [
-    {
-      id: '1',
-      usuario: 'GamerPro123',
-      rating: 4,
-      titulo: 'Muy buen juego pero...',
-      comentario: 'Me encanta la jugabilidad y los gráficos, pero hay algunos bugs menores que deberían corregirse. El modo multijugador es excelente.',
-      fecha: '2024-01-15',
-      recomendado: true,
-    },
-    {
-      id: '2',
-      usuario: 'CriticalReviewer',
-      rating: 2,
-      titulo: 'Necesita mejoras',
-      comentario: 'El juego tiene potencial pero el rendimiento es muy bajo en mi PC. Esperaba más optimización para el precio que tiene.',
-      fecha: '2024-01-14',
-      recomendado: false,
-    },
-    {
-      id: '3',
-      usuario: 'CasualPlayer99',
-      rating: 5,
-      titulo: 'Increíble experiencia',
-      comentario: 'Uno de los mejores juegos que he jugado este año. La historia es cautivadora y la banda sonora es espectacular.',
-      fecha: '2024-01-13',
-      recomendado: true,
-    },
-  ];
+  const [enviandoRespuesta, setEnviandoRespuesta] = useState({});
 
   // Mensajes de feedback
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+
+  // Verificar si la app está aprobada/publicada
+  const appEstaAprobada = appData && ['aprobado', 'publicado'].includes(appData.estado_revision);
 
   // Cargar aplicaciones al montar
   useEffect(() => {
@@ -78,6 +57,12 @@ export const ConfiguracionTiendaPage = () => {
   useEffect(() => {
     if (appSeleccionada) {
       cargarDatosAplicacion();
+      // Solo cargar reseñas y anuncios si la app está aprobada
+      const app = aplicaciones.find(a => a.id === appSeleccionada);
+      if (app && ['aprobado', 'publicado'].includes(app.estado_revision)) {
+        cargarResenias();
+        cargarAnuncios();
+      }
     }
   }, [appSeleccionada]);
 
@@ -101,7 +86,17 @@ export const ConfiguracionTiendaPage = () => {
       const response = await developerAuthService.obtenerAplicaciones();
       const apps = response.data || [];
       setAplicaciones(apps);
-      if (apps.length > 0) {
+
+      // Filtrar solo apps aprobadas o publicadas para configuración avanzada
+      const aprobadas = apps.filter(app =>
+        ['aprobado', 'publicado'].includes(app.estado_revision)
+      );
+      setAplicacionesAprobadas(aprobadas);
+
+      if (aprobadas.length > 0) {
+        setAppSeleccionada(aprobadas[0].id);
+      } else if (apps.length > 0) {
+        // Si no hay aprobadas, mostrar la primera (pero con funcionalidades limitadas)
         setAppSeleccionada(apps[0].id);
       }
     } catch (error) {
@@ -119,6 +114,37 @@ export const ConfiguracionTiendaPage = () => {
       setAppData(appActual);
       setDescripcionLarga(appActual.descripcion_larga || '');
       setEtiquetas(appActual.etiquetas || []);
+    }
+  };
+
+  const cargarResenias = async () => {
+    if (!appSeleccionada) return;
+
+    try {
+      setLoadingResenias(true);
+      const response = await storeConfigService.obtenerResenias(appSeleccionada);
+      setResenias(response.data || []);
+    } catch (error) {
+      console.error('Error al cargar reseñas:', error);
+      // No mostrar error al usuario, simplemente mostrar lista vacía
+      setResenias([]);
+    } finally {
+      setLoadingResenias(false);
+    }
+  };
+
+  const cargarAnuncios = async () => {
+    if (!appSeleccionada) return;
+
+    try {
+      setLoadingAnuncios(true);
+      const response = await storeConfigService.obtenerAnuncios(appSeleccionada);
+      setAnuncios(response.data || []);
+    } catch (error) {
+      console.error('Error al cargar anuncios:', error);
+      setAnuncios([]);
+    } finally {
+      setLoadingAnuncios(false);
     }
   };
 
@@ -203,25 +229,67 @@ export const ConfiguracionTiendaPage = () => {
     }
   };
 
-  const handlePublicarAnuncio = () => {
+  const handlePublicarAnuncio = async () => {
     if (!nuevoAnuncio.titulo.trim() || !nuevoAnuncio.contenido.trim()) {
       mostrarMensaje('Completa el título y contenido del anuncio', 'error');
       return;
     }
-    // Por ahora solo mostramos mensaje de éxito (hardcoded)
-    mostrarMensaje('Anuncio publicado correctamente (demo)', 'success');
-    setNuevoAnuncio({ titulo: '', contenido: '', tipo: 'noticia' });
+
+    if (!appEstaAprobada) {
+      mostrarMensaje('Solo puedes publicar anuncios en aplicaciones aprobadas', 'error');
+      return;
+    }
+
+    try {
+      setLoadingCrearAnuncio(true);
+      await storeConfigService.crearAnuncio(appSeleccionada, nuevoAnuncio);
+      mostrarMensaje('Anuncio publicado correctamente', 'success');
+      setNuevoAnuncio({ titulo: '', contenido: '', tipo: 'noticia' });
+      // Recargar anuncios
+      cargarAnuncios();
+    } catch (error) {
+      mostrarMensaje(error.message || 'Error al publicar anuncio', 'error');
+    } finally {
+      setLoadingCrearAnuncio(false);
+    }
   };
 
-  const handleEnviarRespuesta = (resenaId) => {
+  const handleEliminarAnuncio = async (anuncioId) => {
+    if (!confirm('¿Estás seguro de eliminar este anuncio?')) return;
+
+    try {
+      await storeConfigService.eliminarAnuncio(appSeleccionada, anuncioId);
+      mostrarMensaje('Anuncio eliminado correctamente', 'success');
+      setAnuncios(anuncios.filter(a => a.id !== anuncioId));
+    } catch (error) {
+      mostrarMensaje(error.message || 'Error al eliminar anuncio', 'error');
+    }
+  };
+
+  const handleEnviarRespuesta = async (resenaId) => {
     const respuesta = respuestas[resenaId];
     if (!respuesta?.trim()) {
       mostrarMensaje('Escribe una respuesta antes de enviar', 'error');
       return;
     }
-    // Por ahora solo mostramos mensaje de éxito (hardcoded)
-    mostrarMensaje('Respuesta enviada correctamente (demo)', 'success');
-    setRespuestas(prev => ({ ...prev, [resenaId]: '' }));
+
+    if (!appEstaAprobada) {
+      mostrarMensaje('Solo puedes responder reseñas de aplicaciones aprobadas', 'error');
+      return;
+    }
+
+    try {
+      setEnviandoRespuesta(prev => ({ ...prev, [resenaId]: true }));
+      await storeConfigService.responderResenia(appSeleccionada, resenaId, respuesta);
+      mostrarMensaje('Respuesta enviada correctamente', 'success');
+      setRespuestas(prev => ({ ...prev, [resenaId]: '' }));
+      // Recargar reseñas para mostrar la respuesta
+      cargarResenias();
+    } catch (error) {
+      mostrarMensaje(error.message || 'Error al enviar respuesta', 'error');
+    } finally {
+      setEnviandoRespuesta(prev => ({ ...prev, [resenaId]: false }));
+    }
   };
 
   const renderStars = (rating) => {
@@ -247,6 +315,27 @@ export const ConfiguracionTiendaPage = () => {
       publicado: { color: 'bg-green-600', text: 'Publicado' },
     };
     return estados[estado] || { color: 'bg-gray-600', text: estado };
+  };
+
+  const getTipoAnuncioBadge = (tipo) => {
+    const tipos = {
+      noticia: { color: 'bg-blue-600', text: 'Noticia' },
+      evento: { color: 'bg-purple-600', text: 'Evento' },
+      parche: { color: 'bg-orange-600', text: 'Parche' },
+      actualizacion: { color: 'bg-cyan-600', text: 'Actualización' },
+      promocion: { color: 'bg-green-600', text: 'Promoción' },
+    };
+    return tipos[tipo] || { color: 'bg-gray-600', text: tipo };
+  };
+
+  const formatearFecha = (fecha) => {
+    return new Date(fecha).toLocaleDateString('es-ES', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   if (loadingApps) {
@@ -303,6 +392,22 @@ export const ConfiguracionTiendaPage = () => {
         </div>
       )}
 
+      {/* Alerta si no hay apps aprobadas */}
+      {aplicacionesAprobadas.length === 0 && (
+        <div className="bg-yellow-900/30 border border-yellow-500/50 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <Lock className="text-yellow-400 mt-0.5 flex-shrink-0" size={20} />
+            <div>
+              <p className="text-yellow-400 font-medium">Funcionalidades limitadas</p>
+              <p className="text-gray-400 text-sm mt-1">
+                Tus aplicaciones aún no han sido aprobadas. Solo podrás editar la descripción y etiquetas.
+                Los anuncios y respuestas a reseñas estarán disponibles cuando tu aplicación sea aprobada.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Sección 1: Selección de Aplicación */}
       <div className="bg-[#1e2a38] border border-[#2a3f5f] rounded-lg p-6">
         <div className="flex items-center gap-2 mb-1">
@@ -312,7 +417,7 @@ export const ConfiguracionTiendaPage = () => {
           </h3>
         </div>
         <p className="text-gray-400 text-sm mb-6">
-          Selecciona la aplicación que deseas configurar.
+          Selecciona la aplicación que deseas configurar. Solo las aplicaciones aprobadas tienen acceso completo.
         </p>
 
         <div className="space-y-4">
@@ -327,7 +432,7 @@ export const ConfiguracionTiendaPage = () => {
             >
               {aplicaciones.map((app) => (
                 <option key={app.id} value={app.id}>
-                  {app.nombre_juego} (AppID: {app.app_id})
+                  {app.nombre_juego} (AppID: {app.app_id}) - {getEstadoBadge(app.estado_revision).text}
                 </option>
               ))}
             </select>
@@ -464,155 +569,251 @@ export const ConfiguracionTiendaPage = () => {
         </p>
       </div>
 
-      {/* Sección 4: Anuncios y Eventos */}
-      <div className="bg-[#1e2a38] border border-[#2a3f5f] rounded-lg p-6">
+      {/* Sección 4: Anuncios y Eventos - Solo para apps aprobadas */}
+      <div className={`bg-[#1e2a38] border border-[#2a3f5f] rounded-lg p-6 ${!appEstaAprobada ? 'opacity-60' : ''}`}>
         <div className="flex items-center gap-2 mb-1">
           <Megaphone className="text-[#66c0f4]" size={20} />
           <h3 className="text-lg font-semibold text-white">
             4. Publicar Anuncio o Evento
           </h3>
+          {!appEstaAprobada && (
+            <span className="ml-2 px-2 py-0.5 bg-yellow-600 text-white text-xs rounded">
+              Requiere aprobación
+            </span>
+          )}
         </div>
         <p className="text-gray-400 text-sm mb-6">
           Publica noticias, eventos, parches o actualizaciones para mantener informados a tus jugadores.
         </p>
 
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-white mb-2">
-              Tipo de Anuncio
-            </label>
-            <select
-              value={nuevoAnuncio.tipo}
-              onChange={(e) => setNuevoAnuncio(prev => ({ ...prev, tipo: e.target.value }))}
-              className="w-full bg-[#0f1923] text-white px-4 py-2 rounded border border-[#2a3f5f] focus:border-[#66c0f4] focus:outline-none"
-            >
-              <option value="noticia">Noticia</option>
-              <option value="evento">Evento</option>
-              <option value="parche">Parche / Actualización</option>
-              <option value="promocion">Promoción</option>
-            </select>
+        {!appEstaAprobada ? (
+          <div className="bg-[#0f1923] border border-[#2a3f5f] rounded p-4 text-center">
+            <Lock className="mx-auto mb-2 text-gray-500" size={32} />
+            <p className="text-gray-400">
+              Esta funcionalidad estará disponible cuando tu aplicación sea aprobada.
+            </p>
           </div>
+        ) : (
+          <>
+            {/* Lista de anuncios existentes */}
+            {anuncios.length > 0 && (
+              <div className="mb-6">
+                <h4 className="text-white font-medium mb-3">Anuncios publicados</h4>
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {anuncios.map((anuncio) => {
+                    const tipoBadge = getTipoAnuncioBadge(anuncio.tipo);
+                    return (
+                      <div
+                        key={anuncio.id}
+                        className="bg-[#0f1923] border border-[#2a3f5f] rounded p-3 flex justify-between items-start"
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={`px-2 py-0.5 rounded text-xs text-white ${tipoBadge.color}`}>
+                              {tipoBadge.text}
+                            </span>
+                            <span className="text-white font-medium">{anuncio.titulo}</span>
+                          </div>
+                          <p className="text-gray-400 text-sm line-clamp-2">{anuncio.contenido}</p>
+                          <div className="flex items-center gap-1 mt-1 text-xs text-gray-500">
+                            <Clock size={12} />
+                            {formatearFecha(anuncio.fecha_publicacion || anuncio.created_at)}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleEliminarAnuncio(anuncio.id)}
+                          className="p-1 text-gray-400 hover:text-red-400 transition-colors"
+                          title="Eliminar anuncio"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
-          <div>
-            <label className="block text-sm font-medium text-white mb-2">
-              Título del Anuncio
-            </label>
-            <input
-              type="text"
-              value={nuevoAnuncio.titulo}
-              onChange={(e) => setNuevoAnuncio(prev => ({ ...prev, titulo: e.target.value }))}
-              placeholder="Ej: ¡Nueva actualización 2.0 disponible!"
-              maxLength={255}
-              className="w-full bg-[#0f1923] text-white px-4 py-2 rounded border border-[#2a3f5f] focus:border-[#66c0f4] focus:outline-none"
-            />
-          </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-white mb-2">
+                  Tipo de Anuncio
+                </label>
+                <select
+                  value={nuevoAnuncio.tipo}
+                  onChange={(e) => setNuevoAnuncio(prev => ({ ...prev, tipo: e.target.value }))}
+                  className="w-full bg-[#0f1923] text-white px-4 py-2 rounded border border-[#2a3f5f] focus:border-[#66c0f4] focus:outline-none"
+                >
+                  <option value="noticia">Noticia</option>
+                  <option value="evento">Evento</option>
+                  <option value="parche">Parche</option>
+                  <option value="actualizacion">Actualización</option>
+                  <option value="promocion">Promoción</option>
+                </select>
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-white mb-2">
-              Contenido
-            </label>
-            <textarea
-              value={nuevoAnuncio.contenido}
-              onChange={(e) => setNuevoAnuncio(prev => ({ ...prev, contenido: e.target.value }))}
-              rows={4}
-              placeholder="Describe los detalles del anuncio, evento o actualización..."
-              className="w-full bg-[#0f1923] text-white px-4 py-3 rounded border border-[#2a3f5f] focus:border-[#66c0f4] focus:outline-none resize-none"
-            />
-          </div>
+              <div>
+                <label className="block text-sm font-medium text-white mb-2">
+                  Título del Anuncio
+                </label>
+                <input
+                  type="text"
+                  value={nuevoAnuncio.titulo}
+                  onChange={(e) => setNuevoAnuncio(prev => ({ ...prev, titulo: e.target.value }))}
+                  placeholder="Ej: ¡Nueva actualización 2.0 disponible!"
+                  maxLength={255}
+                  className="w-full bg-[#0f1923] text-white px-4 py-2 rounded border border-[#2a3f5f] focus:border-[#66c0f4] focus:outline-none"
+                />
+              </div>
 
-          <div className="flex justify-end">
-            <button
-              onClick={handlePublicarAnuncio}
-              className="flex items-center gap-2 px-4 py-2 bg-[#66c0f4] text-white rounded hover:bg-[#5bb1e3] transition-colors font-medium"
-            >
-              <Megaphone size={16} />
-              Publicar Anuncio
-            </button>
-          </div>
-        </div>
+              <div>
+                <label className="block text-sm font-medium text-white mb-2">
+                  Contenido
+                </label>
+                <textarea
+                  value={nuevoAnuncio.contenido}
+                  onChange={(e) => setNuevoAnuncio(prev => ({ ...prev, contenido: e.target.value }))}
+                  rows={4}
+                  placeholder="Describe los detalles del anuncio, evento o actualización..."
+                  className="w-full bg-[#0f1923] text-white px-4 py-3 rounded border border-[#2a3f5f] focus:border-[#66c0f4] focus:outline-none resize-none"
+                />
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  onClick={handlePublicarAnuncio}
+                  disabled={loadingCrearAnuncio}
+                  className="flex items-center gap-2 px-4 py-2 bg-[#66c0f4] text-white rounded hover:bg-[#5bb1e3] transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Megaphone size={16} />
+                  {loadingCrearAnuncio ? 'Publicando...' : 'Publicar Anuncio'}
+                </button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
-      {/* Sección 5: Reseñas Pendientes */}
-      <div className="bg-[#1e2a38] border border-[#2a3f5f] rounded-lg p-6">
+      {/* Sección 5: Reseñas Pendientes - Solo para apps aprobadas */}
+      <div className={`bg-[#1e2a38] border border-[#2a3f5f] rounded-lg p-6 ${!appEstaAprobada ? 'opacity-60' : ''}`}>
         <div className="flex items-center gap-2 mb-1">
           <MessageSquare className="text-[#66c0f4]" size={20} />
           <h3 className="text-lg font-semibold text-white">
-            5. Reseñas Pendientes de Respuesta
+            5. Reseñas de Usuarios
           </h3>
+          {!appEstaAprobada && (
+            <span className="ml-2 px-2 py-0.5 bg-yellow-600 text-white text-xs rounded">
+              Requiere aprobación
+            </span>
+          )}
         </div>
         <p className="text-gray-400 text-sm mb-6">
           Responde a las reseñas de tus usuarios para mejorar la comunicación con tu comunidad.
         </p>
 
-        <div className="space-y-4">
-          {resenasPendientes.map((resena) => (
-            <div
-              key={resena.id}
-              className="bg-[#0f1923] border border-[#2a3f5f] rounded-lg p-4"
-            >
-              {/* Header de la reseña */}
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-[#2a3f5f] rounded-full flex items-center justify-center">
-                    <span className="text-white font-medium">
-                      {resena.usuario.charAt(0).toUpperCase()}
+        {!appEstaAprobada ? (
+          <div className="bg-[#0f1923] border border-[#2a3f5f] rounded p-4 text-center">
+            <Lock className="mx-auto mb-2 text-gray-500" size={32} />
+            <p className="text-gray-400">
+              Esta funcionalidad estará disponible cuando tu aplicación sea aprobada.
+            </p>
+          </div>
+        ) : loadingResenias ? (
+          <div className="text-center py-8 text-gray-400">
+            Cargando reseñas...
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {resenias.length > 0 ? (
+              resenias.map((resena) => (
+                <div
+                  key={resena.id}
+                  className="bg-[#0f1923] border border-[#2a3f5f] rounded-lg p-4"
+                >
+                  {/* Header de la reseña */}
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-[#2a3f5f] rounded-full flex items-center justify-center overflow-hidden">
+                        {resena.avatar ? (
+                          <img src={resena.avatar} alt={resena.usuario} className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-white font-medium">
+                            {resena.usuario.charAt(0).toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-white font-medium">{resena.usuario}</p>
+                        <div className="flex items-center gap-2">
+                          {renderStars(resena.rating)}
+                          <span className="text-xs text-gray-500">{formatearFecha(resena.fecha)}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <span
+                      className={`px-2 py-1 rounded text-xs font-medium ${
+                        resena.recomendado
+                          ? 'bg-green-900/30 text-green-400 border border-green-500/30'
+                          : 'bg-red-900/30 text-red-400 border border-red-500/30'
+                      }`}
+                    >
+                      {resena.recomendado ? 'Recomendado' : 'No recomendado'}
                     </span>
                   </div>
-                  <div>
-                    <p className="text-white font-medium">{resena.usuario}</p>
-                    <div className="flex items-center gap-2">
-                      {renderStars(resena.rating)}
-                      <span className="text-xs text-gray-500">{resena.fecha}</span>
-                    </div>
+
+                  {/* Contenido de la reseña */}
+                  <div className="mb-4">
+                    <h4 className="text-white font-medium mb-1">{resena.titulo}</h4>
+                    <p className="text-gray-400 text-sm">{resena.comentario}</p>
                   </div>
+
+                  {/* Respuesta existente o campo de respuesta */}
+                  {resena.respuesta_desarrollador ? (
+                    <div className="border-t border-[#2a3f5f] pt-4 mt-4">
+                      <div className="bg-[#1e2a38] rounded p-3">
+                        <p className="text-xs text-[#66c0f4] font-medium mb-2">Tu respuesta oficial:</p>
+                        <p className="text-gray-300 text-sm">{resena.respuesta_desarrollador}</p>
+                        <p className="text-xs text-gray-500 mt-2">
+                          Respondido el {formatearFecha(resena.fecha_respuesta)}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="border-t border-[#2a3f5f] pt-4">
+                      <label className="block text-sm font-medium text-gray-400 mb-2">
+                        Tu respuesta oficial:
+                      </label>
+                      <div className="flex gap-2">
+                        <textarea
+                          value={respuestas[resena.id] || ''}
+                          onChange={(e) => setRespuestas(prev => ({ ...prev, [resena.id]: e.target.value }))}
+                          rows={2}
+                          placeholder="Escribe tu respuesta a esta reseña..."
+                          className="flex-1 bg-[#1e2a38] text-white px-3 py-2 rounded border border-[#2a3f5f] focus:border-[#66c0f4] focus:outline-none resize-none text-sm"
+                        />
+                        <button
+                          onClick={() => handleEnviarRespuesta(resena.id)}
+                          disabled={enviandoRespuesta[resena.id]}
+                          className="self-end px-4 py-2 bg-[#66c0f4] text-white rounded hover:bg-[#5bb1e3] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {enviandoRespuesta[resena.id] ? (
+                            <span className="animate-spin">...</span>
+                          ) : (
+                            <Send size={16} />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <span
-                  className={`px-2 py-1 rounded text-xs font-medium ${
-                    resena.recomendado
-                      ? 'bg-green-900/30 text-green-400 border border-green-500/30'
-                      : 'bg-red-900/30 text-red-400 border border-red-500/30'
-                  }`}
-                >
-                  {resena.recomendado ? 'Recomendado' : 'No recomendado'}
-                </span>
+              ))
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                No hay reseñas para esta aplicación todavía
               </div>
-
-              {/* Contenido de la reseña */}
-              <div className="mb-4">
-                <h4 className="text-white font-medium mb-1">{resena.titulo}</h4>
-                <p className="text-gray-400 text-sm">{resena.comentario}</p>
-              </div>
-
-              {/* Campo de respuesta */}
-              <div className="border-t border-[#2a3f5f] pt-4">
-                <label className="block text-sm font-medium text-gray-400 mb-2">
-                  Tu respuesta oficial:
-                </label>
-                <div className="flex gap-2">
-                  <textarea
-                    value={respuestas[resena.id] || ''}
-                    onChange={(e) => setRespuestas(prev => ({ ...prev, [resena.id]: e.target.value }))}
-                    rows={2}
-                    placeholder="Escribe tu respuesta a esta reseña..."
-                    className="flex-1 bg-[#1e2a38] text-white px-3 py-2 rounded border border-[#2a3f5f] focus:border-[#66c0f4] focus:outline-none resize-none text-sm"
-                  />
-                  <button
-                    onClick={() => handleEnviarRespuesta(resena.id)}
-                    className="self-end px-4 py-2 bg-[#66c0f4] text-white rounded hover:bg-[#5bb1e3] transition-colors"
-                  >
-                    <Send size={16} />
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-
-          {resenasPendientes.length === 0 && (
-            <div className="text-center py-8 text-gray-500">
-              No hay reseñas pendientes de respuesta
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Nota informativa */}
@@ -623,7 +824,8 @@ export const ConfiguracionTiendaPage = () => {
             <p className="font-medium text-white mb-1">Nota importante</p>
             <p>
               Los cambios en la configuración de tu tienda se reflejarán inmediatamente
-              en la página de tu juego. Asegúrate de revisar la información antes de guardar.
+              en la página de tu juego. Las funcionalidades de anuncios y respuestas a reseñas
+              solo están disponibles para aplicaciones aprobadas o publicadas.
             </p>
           </div>
         </div>
